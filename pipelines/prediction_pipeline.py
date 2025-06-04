@@ -60,66 +60,147 @@ class PredictionPipeline(BasePipeline):
             
             logger.info(f"models 폴더 사용 가능 파일: {available_files}")
             
-            # prediction.py 파일이 없으면 경고 후 건너뛰기
-            if 'prediction.py' not in available_files:
-                logger.warning("prediction.py 파일이 없어 예측을 건너뜁니다")
+            # streaming_models.py 사용
+            if 'streaming_models.py' in available_files:
+                from models.streaming_models import StreamingModelManager
+                
+                company_domain = self.config.get('company_domain')
+                device_id = self.config.get('device_id')
+                
+                manager = StreamingModelManager(
+                    config_manager=self.config,
+                    company_domain=company_domain,
+                    device_id=device_id
+                )
+                
+                # 스트리밍 데이터로 예측
+                predictions = manager.predict_with_streaming_data(minutes=30)
+                
+                if predictions:
+                    # 예측 결과 저장
+                    self._save_predictions(predictions)
+                    
+                    # 알림 처리
+                    self._process_prediction_alerts(predictions)
+                    
+                    logger.info("예측 실행 및 저장 완료")
+                    return True
+                else:
+                    logger.error("예측 실행 실패")
+                    return False
+                    
+            elif 'prediction.py' in available_files:
+                # 기존 prediction.py 파일이 있는 경우
+                try:
+                    from models.prediction import SystemResourcePredictor
+                except ImportError as e:
+                    logger.error(f"SystemResourcePredictor import 실패: {e}")
+                    return False
+                
+                # ConfigManager에서 설정 가져오기
+                company_domain = self.config.get('company_domain')
+                device_id = self.config.get('device_id')
+                server_id = self.config.get_server_id()
+                
+                if not company_domain:
+                    logger.error("회사 도메인이 설정되지 않았습니다.")
+                    return False
+                
+                # 예측 범위 설정
+                hours = kwargs.get('hours', self.config.get('prediction_horizon', 24))
+                
+                # SystemResourcePredictor 초기화 (ConfigManager 전달)
+                predictor = SystemResourcePredictor(
+                    config_manager=self.config,
+                    company_domain=company_domain,
+                    server_id=server_id,
+                    device_id=device_id
+                )
+                
+                # 모델 로드
+                if not predictor.load_models():
+                    logger.warning("모델 로드 실패, 훈련 시도")
+                    if not predictor.train_models():
+                        logger.error("모델 훈련도 실패")
+                        return False
+                
+                # 예측 실행
+                predictions = predictor.predict_future_usage(hours)
+                
+                if predictions:
+                    # 예측 결과 저장
+                    predictor.save_predictions(predictions)
+                    
+                    # 알림 처리
+                    self._process_prediction_alerts(predictions)
+                    
+                    logger.info("예측 실행 및 저장 완료")
+                    return True
+                else:
+                    logger.error("예측 실행 실패")
+                    return False
+            else:
+                logger.warning("예측 모델 파일이 없어 예측을 건너뜁니다")
                 logger.info("사용 가능한 모델 파일: streaming_models.py 사용 권장")
                 return True
-            
-            # prediction.py가 있는 경우에만 import 시도
-            try:
-                from models.prediction import SystemResourcePredictor
-            except ImportError as e:
-                logger.error(f"SystemResourcePredictor import 실패: {e}")
-                return False
-            
-            # ConfigManager에서 설정 가져오기
-            company_domain = self.config.get('company_domain')
-            device_id = self.config.get('device_id')
-            server_id = self.config.get_server_id()
-            
-            if not company_domain:
-                logger.error("회사 도메인이 설정되지 않았습니다.")
-                return False
-            
-            # 예측 범위 설정
-            hours = kwargs.get('hours', self.config.get('prediction_horizon', 24))
-            
-            # SystemResourcePredictor 초기화 (ConfigManager 전달)
-            predictor = SystemResourcePredictor(
-                config_manager=self.config,
-                company_domain=company_domain,
-                server_id=server_id,
-                device_id=device_id
-            )
-            
-            # 모델 로드
-            if not predictor.load_models():
-                logger.warning("모델 로드 실패, 훈련 시도")
-                if not predictor.train_models():
-                    logger.error("모델 훈련도 실패")
-                    return False
-            
-            # 예측 실행
-            predictions = predictor.predict_future_usage(hours)
-            
-            if predictions:
-                # 예측 결과 저장
-                predictor.save_predictions(predictions)
-                
-                # 알림 처리
-                self._process_prediction_alerts(predictions)
-                
-                logger.info("예측 실행 및 저장 완료")
-                return True
-            else:
-                logger.error("예측 실행 실패")
-                return False
                 
         except Exception as e:
             logger.error(f"예측 실행 오류: {e}")
             return False
-    
+    def _save_predictions(self, predictions) -> bool:
+        """예측 결과 저장"""
+        try:
+            db = self.get_db_manager()
+            
+            # 배치 데이터 준비
+            batch_data = []
+            prediction_time = datetime.now()
+            batch_id = prediction_time.strftime("%Y%m%d%H%M%S")
+            
+            # 시간 파싱
+            times = predictions.get('times', [])
+            if isinstance(times[0], str):
+                times = [datetime.strptime(t, '%Y-%m-%d %H:%M:00') for t in times]
+            
+            # 각 리소스별 예측 저장
+            for resource_type, values in predictions.get('predictions', {}).items():
+                for i, (target_time, value) in enumerate(zip(times, values)):
+                    batch_data.append((
+                        self.config.get('company_domain'),
+                        self.config.get_server_id(),
+                        prediction_time,
+                        target_time,
+                        resource_type,
+                        float(value),
+                        None,  # actual_value
+                        None,  # error
+                        'streaming_model',
+                        batch_id,
+                        self.config.get('device_id', '')
+                    ))
+            
+            if batch_data:
+                query = f"""
+                INSERT INTO predictions
+                (company_domain, {db.server_id_field}, prediction_time, target_time, resource_type, 
+                predicted_value, actual_value, error, model_version, batch_id, device_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                
+                result = db.execute_query(query, batch_data, many=True)
+                
+                if result:
+                    logger.info(f"예측 결과 {len(batch_data)}개 저장 완료")
+                    return True
+                else:
+                    logger.error("예측 결과 저장 실패")
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"예측 결과 저장 오류: {e}")
+            return False    
     def _update_accuracy(self, **kwargs) -> bool:
         """예측 정확도 업데이트"""
         logger.info("예측 정확도 업데이트 시작")
