@@ -3,12 +3,8 @@ name: Deploy Python Predictor
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'resource-predictor/**'
-      - '.github/workflows/deploy.yml'
 
 env:
-  PROJECT_PATH: resource-predictor
   DOCKER_IMAGE: resource-predictor
   SERVICE_NAME: resource-predictor
 
@@ -26,7 +22,6 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cd ${{ env.PROJECT_PATH }}
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
@@ -39,7 +34,6 @@ jobs:
     - name: Build & Push Docker Image
       run: |
         IMAGE_TAG=${{ github.sha }}
-        cd ${{ env.PROJECT_PATH }}
         docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:$IMAGE_TAG .
         docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:$IMAGE_TAG
         echo "PREDICTOR_IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
@@ -59,15 +53,11 @@ jobs:
         script: |
           cd /home/aiot2-team3/docker/javame
           
-          # .env 파일에 이미지 태그만 업데이트
           if grep -q '^PREDICTOR_IMAGE_TAG=' .env; then
             sed -i "s|^PREDICTOR_IMAGE_TAG=.*|PREDICTOR_IMAGE_TAG=${{ env.PREDICTOR_IMAGE_TAG }}|" .env
           else
             echo "PREDICTOR_IMAGE_TAG=${{ env.PREDICTOR_IMAGE_TAG }}" >> .env
           fi
           
-          # 서비스 재시작
-          docker-compose stop ${{ env.SERVICE_NAME }}
-          docker-compose rm -f ${{ env.SERVICE_NAME }}
-          docker-compose pull ${{ env.SERVICE_NAME }}
-          docker-compose up -d ${{ env.SERVICE_NAME }}
+          docker-compose pull resource-predictor
+          docker-compose up -d resource-predictor
