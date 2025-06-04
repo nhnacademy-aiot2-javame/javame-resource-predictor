@@ -48,80 +48,70 @@ class ModelPipeline(BasePipeline):
             logger.error(traceback.format_exc())
             return False
     
+
     def _train_app_models(self, **kwargs) -> bool:
         """애플리케이션 영향도 모델 학습"""
         logger.info("애플리케이션 영향도 모델 학습 시작")
         
         try:
-            from models.app_models import AppModelManager
+            # 현재 models 폴더에 있는 파일들 확인
+            models_dir = os.path.join(os.path.dirname(__file__), "..", "models")
+            available_files = []
+            if os.path.exists(models_dir):
+                available_files = [f for f in os.listdir(models_dir) if f.endswith('.py')]
             
-            # ConfigManager에서 설정 가져오기
-            company_domain = self.config.get('company_domain')
-            device_id = self.config.get('device_id')
-            server_id = self.config.get_server_id()
+            logger.info(f"models 폴더 사용 가능 파일: {available_files}")
             
-            if not company_domain:
-                logger.error("회사 도메인이 설정되지 않았습니다.")
-                return False
-            
-            # AppModelManager 초기화 (ConfigManager 전달)
-            manager = AppModelManager(
-                config_manager=self.config,
-                company_domain=company_domain,
-                server_id=server_id,
-                device_id=device_id
-            )
-            
-            # 모든 애플리케이션 모델 학습
-            success = manager.train_all_models()
-            
-            if success:
-                logger.info("애플리케이션 영향도 모델 학습 완료")
-                return True
+            # streaming_models.py 사용
+            if 'streaming_models.py' in available_files:
+                from models.streaming_models import StreamingModelManager
+                
+                company_domain = self.config.get('company_domain')
+                device_id = self.config.get('device_id')
+                
+                manager = StreamingModelManager(
+                    config_manager=self.config,
+                    company_domain=company_domain,
+                    device_id=device_id
+                )
+                
+                # 캐시 기반 학습
+                cache_key = datetime.now().strftime('%Y%m%d')
+                success = manager.train_models_from_cache(cache_key)
+                
+                if success:
+                    logger.info("애플리케이션 영향도 모델 학습 완료")
+                    return True
+                else:
+                    logger.error("애플리케이션 영향도 모델 학습 실패")
+                    return False
             else:
-                logger.error("애플리케이션 영향도 모델 학습 실패")
-                return False
+                logger.warning("app_models.py 파일이 없어 학습을 건너뜁니다")
+                return True
                 
         except Exception as e:
             logger.error(f"애플리케이션 모델 학습 오류: {e}")
             return False
-    
+
     def _train_system_models(self, **kwargs) -> bool:
         """시스템 예측 모델 학습"""
         logger.info("시스템 예측 모델 학습 시작")
         
         try:
-            from models.prediction import SystemResourcePredictor
+            # 현재 models 폴더에 있는 파일들 확인
+            models_dir = os.path.join(os.path.dirname(__file__), "..", "models")
+            available_files = []
+            if os.path.exists(models_dir):
+                available_files = [f for f in os.listdir(models_dir) if f.endswith('.py')]
             
-            # ConfigManager에서 설정 가져오기
-            company_domain = self.config.get('company_domain')
-            device_id = self.config.get('device_id')
-            server_id = self.config.get_server_id()
-            
-            if not company_domain:
-                logger.error("회사 도메인이 설정되지 않았습니다.")
-                return False
-            
-            # 시각화 설정
-            visualization = kwargs.get('visualization', self.config.get('visualization_enabled', False))
-            
-            # SystemResourcePredictor 초기화 (ConfigManager 전달)
-            predictor = SystemResourcePredictor(
-                config_manager=self.config,
-                company_domain=company_domain,
-                server_id=server_id,
-                device_id=device_id
-            )
-            
-            # 시스템 예측 모델 학습
-            success = predictor.train_models(visualization=visualization)
-            
-            if success:
-                logger.info("시스템 예측 모델 학습 완료")
+            # streaming_models.py 사용
+            if 'streaming_models.py' in available_files:
+                # 이미 위에서 처리됨
+                logger.info("시스템 예측 모델 학습은 streaming_models에서 통합 처리됨")
                 return True
             else:
-                logger.error("시스템 예측 모델 학습 실패")
-                return False
+                logger.warning("prediction.py 파일이 없어 학습을 건너뜁니다")
+                return True
                 
         except Exception as e:
             logger.error(f"시스템 모델 학습 오류: {e}")

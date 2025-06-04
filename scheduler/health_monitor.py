@@ -117,6 +117,18 @@ class HealthMonitor:
     def _collect_system_metrics(self) -> Dict[str, Any]:
         """원격 디바이스 메트릭 수집"""
         try:
+            # config가 None인 경우 기본값 반환
+            if not self.config:
+                return {
+                    'timestamp': datetime.now(),
+                    'cpu_percent': 0,
+                    'memory_percent': 0,
+                    'disk_percent': 0,
+                    'load_average': 0,
+                    'process_count': 0,
+                    'network_connections': 0
+                }
+            
             # 로컬 시스템 대신 InfluxDB에서 최신 데이터 조회
             from data.streaming_collector import StreamingDataCollector
             
@@ -141,14 +153,26 @@ class HealthMonitor:
                 }
             
             # 최신 값 추출
-            latest_cpu = sys_df[(sys_df['resource_type'] == 'cpu') & (sys_df['measurement'] == 'usage_user')]['value'].iloc[-1] if len(sys_df[(sys_df['resource_type'] == 'cpu')]) > 0 else 0
-            latest_mem = sys_df[(sys_df['resource_type'] == 'mem') & (sys_df['measurement'] == 'used_percent')]['value'].iloc[-1] if len(sys_df[(sys_df['resource_type'] == 'mem')]) > 0 else 0
-            latest_disk = sys_df[(sys_df['resource_type'] == 'disk') & (sys_df['measurement'] == 'used_percent')]['value'].iloc[-1] if len(sys_df[(sys_df['resource_type'] == 'disk')]) > 0 else 0
+            latest_cpu = 0
+            latest_mem = 0
+            latest_disk = 0
+            
+            cpu_data = sys_df[(sys_df['resource_type'] == 'cpu') & (sys_df['measurement'] == 'usage_user')]
+            if not cpu_data.empty:
+                latest_cpu = cpu_data['value'].iloc[-1]
+            
+            mem_data = sys_df[(sys_df['resource_type'] == 'mem') & (sys_df['measurement'] == 'used_percent')]
+            if not mem_data.empty:
+                latest_mem = mem_data['value'].iloc[-1]
+            
+            disk_data = sys_df[(sys_df['resource_type'] == 'disk') & (sys_df['measurement'] == 'used_percent')]
+            if not disk_data.empty:
+                latest_disk = disk_data['value'].iloc[-1]
             
             metrics = {
                 'timestamp': datetime.now(),
                 'cpu_percent': latest_cpu,
-                'memory_percent': latest_mem,  # 이제 58-59% 값이 됨
+                'memory_percent': latest_mem,
                 'disk_percent': latest_disk,
                 'load_average': 0,
                 'process_count': 0,
