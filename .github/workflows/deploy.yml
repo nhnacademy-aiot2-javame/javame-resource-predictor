@@ -54,9 +54,9 @@ jobs:
           cd ~/docker/javame
           
           if grep -q '^PREDICTOR_IMAGE_TAG=' .env; then
-            sed -i "s|^PREDICTOR_IMAGE_TAG=.*|PREDICTOR_IMAGE_TAG=${{ env.PREDICTOR_IMAGE_TAG }}|" .env
+            sed -i "s|^PREDICTOR_IMAGE_TAG=.*|PREDICTOR_IMAGE_TAG=${{ github.sha }}|" .env
           else
-            echo "PREDICTOR_IMAGE_TAG=${{ env.PREDICTOR_IMAGE_TAG }}" >> .env
+            echo "PREDICTOR_IMAGE_TAG=${{ github.sha }}" >> .env
           fi
           
           docker-compose pull resource-predictor
