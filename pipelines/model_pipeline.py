@@ -49,6 +49,7 @@ class ModelPipeline(BasePipeline):
             return False
     
 
+
     def _train_app_models(self, **kwargs) -> bool:
         """애플리케이션 영향도 모델 학습"""
         logger.info("애플리케이션 영향도 모델 학습 시작")
