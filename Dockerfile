@@ -14,11 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 애플리케이션 코드 복사
 COPY . .
 
-# 실행 권한 부여
-RUN chmod +x streaming_startup.sh
+# 실행 권한 부여 (scripts 폴더 내)
+RUN chmod +x scripts/streaming_startup.sh
 
 # 디렉토리 생성
 RUN mkdir -p cache logs models/trained
 
-# 실행
-CMD ["./streaming_startup.sh"]
+# 실행 (scripts 폴더 내의 스크립트)
+CMD ["./scripts/streaming_startup.sh"]
