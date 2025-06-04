@@ -21,6 +21,16 @@ from core.config_manager import ConfigManager
 from core.logger import logger
 from core.db import DatabaseManager
 from models.app_models import AppModelManager
+os.environ['MPLBACKEND'] = 'Agg'
+
+# matplotlib import 전에 로거 설정
+import logging
+# matplotlib 로거 레벨을 WARNING으로 설정하여 INFO 메시지 방지
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
+logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
+
+import matplotlib
+matplotlib.use('Agg')  # GUI 백엔드 비활성화
 
 class SystemResourcePredictor:
     """시스템 자원 예측기 클래스 - 시간 동기화 개선"""
