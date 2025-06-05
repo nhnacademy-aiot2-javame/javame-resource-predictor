@@ -60,9 +60,13 @@ class AppImpactModel:
         from config.settings import get_hyperparameters
         self.hyperparameters = get_hyperparameters(self.model_type)
         
-        # 모델 저장 경로
-        self.model_dir = os.path.join("models", "trained", self.company_domain, str(self.server_id), self.application)
+        # 모델 저장 경로 - 절대 경로로 수정
+        import os
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.model_dir = os.path.join(base_dir, "models", "trained", self.company_domain, str(self.server_id), self.application)
         os.makedirs(self.model_dir, exist_ok=True)
+        
+        logger.info(f"애플리케이션 '{self.application}' 모델 디렉토리: {self.model_dir}")
         
         # 자원 유형별 모델
         self.models = {
