@@ -95,6 +95,15 @@ class StreamingPreprocessor:
         # 고정 캐시 파일명 사용
         impact_file = os.path.join(self.impact_dir, "impact_latest.pkl")
         
+        # 입력 데이터의 시간대 정보 제거
+        jvm_df = jvm_df.copy()
+        sys_df = sys_df.copy()
+        
+        if not jvm_df.empty:
+            jvm_df['time'] = pd.to_datetime(jvm_df['time']).dt.tz_localize(None)
+        if not sys_df.empty:
+            sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
+        
         # 입력 데이터 검증
         if not self._validate_input_data(jvm_df, sys_df, "영향도 계산"):
             return None
@@ -107,6 +116,10 @@ class StreamingPreprocessor:
                 if (datetime.now() - file_time).total_seconds() < 6 * 3600:
                     with open(impact_file, 'rb') as f:
                         impact_df = pickle.load(f)
+                    
+                    # 캐시된 데이터의 시간대 정보도 제거
+                    if not impact_df.empty:
+                        impact_df['time'] = pd.to_datetime(impact_df['time']).dt.tz_localize(None)
                     
                     # 캐시된 데이터 검증
                     if self._validate_impact_data(impact_df):
@@ -341,13 +354,11 @@ class StreamingPreprocessor:
             # 시간 형식 검증 및 변환 (timezone 제거)
             if not pd.api.types.is_datetime64_any_dtype(jvm_df['time']):
                 jvm_df['time'] = pd.to_datetime(jvm_df['time'])
-            else:
-                jvm_df['time'] = pd.to_datetime(jvm_df['time']).dt.tz_localize(None)
+            jvm_df['time'] = pd.to_datetime(jvm_df['time']).dt.tz_localize(None)
             
             if not pd.api.types.is_datetime64_any_dtype(sys_df['time']):
                 sys_df['time'] = pd.to_datetime(sys_df['time'])
-            else:
-                sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
+            sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
             
             # 시스템 리소스 데이터 필터링
             sys_filtered = sys_df[

@@ -74,6 +74,12 @@ class StreamingDataCollector:
                 with open(sys_cache_file, 'rb') as f:
                     sys_df = pickle.load(f)
                 
+                # 캐시된 데이터의 시간대 정보 제거
+                if not jvm_df.empty:
+                    jvm_df['time'] = pd.to_datetime(jvm_df['time']).dt.tz_localize(None)
+                if not sys_df.empty:
+                    sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
+                
                 # 캐시된 데이터 검증
                 if self._validate_training_data(jvm_df, sys_df):
                     return jvm_df, sys_df
@@ -229,9 +235,15 @@ class StreamingDataCollector:
             
             for table in results:
                 for record in table.records:
+                    # 시간 정보를 timezone-naive로 변환
+                    record_time = record.get_time()
+                    if hasattr(record_time, 'replace'):
+                        # timezone 정보 제거
+                        record_time = pd.to_datetime(record_time).tz_localize(None)
+                    
                     if query_type == 'jvm':
                         data.append({
-                            'time': record.get_time(),
+                            'time': record_time,
                             'application': record.values.get('gatewayId', ''),
                             'metric_type': record.get_measurement(),
                             'value': record.get_value(),
@@ -240,7 +252,7 @@ class StreamingDataCollector:
                     else:
                         measurement = 'usage_user' if query_type == 'cpu' else 'used_percent'
                         data.append({
-                            'time': record.get_time(),
+                            'time': record_time,
                             'resource_type': query_type,
                             'measurement': measurement,
                             'value': record.get_value(),
@@ -249,7 +261,7 @@ class StreamingDataCollector:
             
             df = pd.DataFrame(data)
             if not df.empty:
-                # timezone 정보 제거
+                # 최종적으로 시간 정보 확인 및 정리
                 df['time'] = pd.to_datetime(df['time']).dt.tz_localize(None)
                 logger.info(f"{query_type} 데이터 조회 완료: {len(df)}개")
             else:
