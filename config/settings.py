@@ -321,7 +321,28 @@ PREDICTION_CONFIG = {
         168: 60  # 7일 예측 → 1시간 간격
     }
 }
-
+# ================================
+# 시간 정렬 및 집계 설정
+# ================================
+TIME_ALIGNMENT_CONFIG = {
+    # 시간 정렬 설정
+    'time_alignment_minutes': int(os.getenv('TIME_ALIGNMENT_MINUTES', '1')),  # 1분 단위 정렬
+    'aggregation_window_seconds': int(os.getenv('AGGREGATION_WINDOW_SECONDS', '30')),  # 30초 집계 윈도우
+    
+    # 예측 정확도 설정
+    'time_tolerance_minutes': int(os.getenv('TIME_TOLERANCE_MINUTES', '2')),  # 2분 허용 오차
+    'max_prediction_age_hours': int(os.getenv('MAX_PREDICTION_AGE_HOURS', '48')),  # 48시간 최대 나이
+    
+    # 개선된 로직 활성화 플래그
+    'use_improved_collector': os.getenv('USE_IMPROVED_COLLECTOR', 'true').lower() == 'true',
+    'use_improved_prediction_accuracy': os.getenv('USE_IMPROVED_PREDICTION_ACCURACY', 'true').lower() == 'true',
+    
+    # 집계 방식 설정
+    'default_aggregation_method': os.getenv('DEFAULT_AGGREGATION_METHOD', 'average'),
+    'cpu_aggregation_method': os.getenv('CPU_AGGREGATION_METHOD', 'max'),
+    'memory_aggregation_method': os.getenv('MEMORY_AGGREGATION_METHOD', 'last'),
+    'disk_aggregation_method': os.getenv('DISK_AGGREGATION_METHOD', 'last'),
+}
 # 기존 호환성 변수들
 RESOURCE_AGGREGATION = DEFAULT_RESOURCE_AGGREGATION
 DEFAULT_AGGREGATION = DEFAULT_AGGREGATION_METHOD

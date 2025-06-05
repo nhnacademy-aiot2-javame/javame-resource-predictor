@@ -244,11 +244,15 @@ class StreamingModelManager:
             logger.info(f"영향도 데이터 시간 범위: {impact_df['time'].min()} ~ {impact_df['time'].max()}")
             logger.info(f"영향도 데이터 크기: {len(impact_df)}개")
             
+            # 시간 정렬 간격 설정 (ConfigManager에서 가져오기)
+            time_interval = self.config.get('time_alignment_minutes', 1)  # 기본 1분
+            time_freq = f'{time_interval}min'
+            
             # 시간별로 그룹화하여 영향도 통계 계산
             impact_stats_list = []
             
-            # 5분 단위로 정렬 (더 많은 데이터 포인트 확보)
-            impact_df['time_rounded'] = impact_df['time'].dt.floor('5min')
+            # 설정된 간격으로 정렬
+            impact_df['time_rounded'] = impact_df['time'].dt.floor(time_freq)
             
             for time_point, time_group in impact_df.groupby('time_rounded'):
                 stats_row = {'time': time_point}
@@ -288,78 +292,87 @@ class StreamingModelManager:
             _, sys_df = collector.get_training_data()
             
             if sys_df.empty:
-                logger.warning("시스템 리소스 데이터가 없어 더미 데이터 사용")
-                # 더미 대상 변수 생성
-                y_df = pd.DataFrame(
-                    index=impact_stats_df.index,
-                    data={
-                        'cpu': np.random.rand(len(impact_stats_df)) * 50 + 20,
-                        'mem': np.random.rand(len(impact_stats_df)) * 40 + 30,
-                        'disk': np.random.rand(len(impact_stats_df)) * 30 + 50
-                    }
-                )
-            else:
-                # 시스템 데이터 시간대 제거 및 피봇
-                sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
-                sys_df['time_rounded'] = sys_df['time'].dt.floor('5min')
-                
-                # 시스템 리소스 데이터 필터링 및 피봇
-                sys_filtered = sys_df[
-                    ((sys_df['resource_type'] == 'cpu') & (sys_df['measurement'] == 'usage_user')) |
-                    ((sys_df['resource_type'] == 'mem') & (sys_df['measurement'] == 'used_percent')) |
-                    ((sys_df['resource_type'] == 'disk') & (sys_df['measurement'] == 'used_percent'))
-                ]
-                
-                y_df = sys_filtered.pivot_table(
-                    index='time_rounded',
-                    columns='resource_type',
-                    values='value',
-                    aggfunc='mean'
-                )
-                
-                logger.info(f"시스템 피봇 테이블: {y_df.shape}")
+                logger.error("시스템 리소스 데이터가 없습니다")
+                return None, None
             
-            # 인덱스 정렬
-            impact_stats_df = impact_stats_df.sort_index()
-            y_df = y_df.sort_index()
+            # 시스템 데이터 시간대 제거 및 동일한 간격으로 정렬
+            sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
+            sys_df['time_rounded'] = sys_df['time'].dt.floor(time_freq)
             
-            # 공통 시간 찾기 - 정확한 매칭
-            common_times = impact_stats_df.index.intersection(y_df.index)
+            # 시스템 리소스 데이터 필터링
+            sys_filtered = sys_df[
+                ((sys_df['resource_type'] == 'cpu') & (sys_df['measurement'] == 'usage_user')) |
+                ((sys_df['resource_type'] == 'mem') & (sys_df['measurement'] == 'used_percent')) |
+                ((sys_df['resource_type'] == 'disk') & (sys_df['measurement'] == 'used_percent'))
+            ]
             
-            logger.info(f"공통 시간대 (정확한 매칭): {len(common_times)}개")
+            # 시스템 데이터가 충분한지 확인
+            logger.info(f"필터링된 시스템 데이터: {len(sys_filtered)}개")
             
-            # 공통 시간이 부족하면 가장 가까운 시간으로 매칭
-            if len(common_times) < 50:  # 최소 50개 필요
-                logger.warning("정확한 시간 매칭이 부족하여 근사 매칭 사용")
-                
-                # 시간 범위가 겹치는 부분만 사용
-                overlap_start = max(impact_stats_df.index.min(), y_df.index.min())
-                overlap_end = min(impact_stats_df.index.max(), y_df.index.max())
-                
-                if overlap_start < overlap_end:
-                    X = impact_stats_df.loc[overlap_start:overlap_end]
-                    y = y_df.loc[overlap_start:overlap_end]
-                    
-                    # 리샘플링으로 시간 정렬
-                    X = X.resample('5min').mean().fillna(method='ffill')
-                    y = y.resample('5min').mean().fillna(method='ffill')
-                    
-                    # 공통 인덱스 다시 확인
-                    common_times = X.index.intersection(y.index)
-                    
-                    if len(common_times) >= 10:
-                        X = X.loc[common_times]
-                        y = y.loc[common_times]
-                        logger.info(f"근사 매칭으로 {len(common_times)}개 데이터 확보")
-                        return X.fillna(0), y.fillna(0)
-                
+            if len(sys_filtered) < 30:
+                logger.error("필터링된 시스템 데이터가 너무 적습니다")
+                return None, None
+            
+            # 피봇 테이블 생성
+            y_df = sys_filtered.pivot_table(
+                index='time_rounded',
+                columns='resource_type',
+                values='value',
+                aggfunc='mean'
+            )
+            
+            logger.info(f"시스템 피봇 테이블: {y_df.shape}")
+            logger.info(f"시스템 데이터 시간 범위: {y_df.index.min()} ~ {y_df.index.max()}")
+            
+            # 시간 범위 겹침 확인
+            overlap_start = max(impact_stats_df.index.min(), y_df.index.min())
+            overlap_end = min(impact_stats_df.index.max(), y_df.index.max())
+            
+            if overlap_start >= overlap_end:
+                logger.error("영향도와 시스템 데이터의 시간 범위가 겹치지 않습니다")
+                logger.error(f"영향도 시간: {impact_stats_df.index.min()} ~ {impact_stats_df.index.max()}")
+                logger.error(f"시스템 시간: {y_df.index.min()} ~ {y_df.index.max()}")
+                return None, None
+            
+            # 겹치는 시간 범위만 추출
+            X = impact_stats_df.loc[overlap_start:overlap_end]
+            y = y_df.loc[overlap_start:overlap_end]
+            
+            # 동일한 간격으로 리샘플링하여 시간 정렬
+            X = X.resample(time_freq).mean()
+            y = y.resample(time_freq).mean()
+            
+            # NaN 제거 (앞뒤 보간)
+            X = X.interpolate(method='time', limit_direction='both')
+            y = y.interpolate(method='time', limit_direction='both')
+            
+            # 여전히 NaN이 있는 행 제거
+            X = X.dropna()
+            y = y.dropna()
+            
+            # 최종 공통 시간 인덱스
+            common_times = X.index.intersection(y.index)
+            
+            logger.info(f"최종 공통 시간대: {len(common_times)}개")
+            
+            if len(common_times) < 10:
+                logger.error(f"공통 시간대가 너무 적습니다: {len(common_times)}개")
                 return None, None
             
             # 매칭된 데이터만 사용
-            X = impact_stats_df.loc[common_times].fillna(0)
-            y = y_df.loc[common_times].fillna(0)
+            X = X.loc[common_times]
+            y = y.loc[common_times]
+            
+            # 모든 컬럼이 있는지 확인
+            required_columns = ['cpu', 'mem', 'disk']
+            missing_columns = [col for col in required_columns if col not in y.columns]
+            
+            if missing_columns:
+                logger.error(f"시스템 데이터에 필수 컬럼이 없습니다: {missing_columns}")
+                return None, None
             
             logger.info(f"시스템 학습 데이터 준비 완료: X={X.shape}, y={y.shape}")
+            logger.info(f"최종 시간 범위: {X.index.min()} ~ {X.index.max()}")
             
             return X, y
             

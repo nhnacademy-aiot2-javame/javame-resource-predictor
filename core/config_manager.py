@@ -61,7 +61,13 @@ class ConfigManager:
             'resample_interval': '5min',
             'validation_split': 0.2,
             'adaptive_interval': True,
-            'prediction_interval_minutes': 5
+            'prediction_interval_minutes': 5,
+
+            'resample_interval': '5min',
+            'validation_split': 0.2,
+            'adaptive_interval': True,
+            'prediction_interval_minutes': 5,
+            'time_alignment_minutes': int(os.getenv('TIME_ALIGNMENT_MINUTES', '1'))
         }
         
         for key, value in base_config.items():

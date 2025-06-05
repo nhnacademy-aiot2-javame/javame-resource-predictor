@@ -192,7 +192,7 @@ class StreamingDataCollector:
         
         file_time = datetime.fromtimestamp(os.path.getmtime(cache_file))
         return (datetime.now() - file_time).total_seconds() < valid_hours * 3600
-    
+        
     def _query_influxdb_data(self, start_time: datetime, end_time: datetime, query_type: str) -> pd.DataFrame:
         """InfluxDB에서 데이터 조회 (통합 함수)"""
         device_filter = f' and r["deviceId"] == "{self.device_id}"' if self.device_id else ""
@@ -206,6 +206,9 @@ class StreamingDataCollector:
         start_str = start_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         end_str = end_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         
+        # 시간 정렬 간격 가져오기
+        time_alignment = self.config.get('time_alignment_minutes', 1)
+        
         base_query = f'''
         from(bucket: "{self.influxdb_bucket}")
         |> range(start: {start_str}, stop: {end_str})
@@ -214,35 +217,39 @@ class StreamingDataCollector:
         '''
         
         if query_type == 'jvm':
-            query = base_query + '''
+            query = base_query + f'''
             |> filter(fn: (r) => r["location"] == "service_resource_data")
             |> filter(fn: (r) => r["_field"] == "value")
+            |> aggregateWindow(every: {time_alignment}m, fn: mean, createEmpty: false)
             '''
         elif query_type == 'cpu':
-            query = base_query + '''
+            query = base_query + f'''
             |> filter(fn: (r) => r["location"] == "server_resource_data")
             |> filter(fn: (r) => r["gatewayId"] == "cpu")
             |> filter(fn: (r) => r["_measurement"] == "usage_idle")
             |> filter(fn: (r) => r["_field"] == "value")
-            |> map(fn: (r) => ({ r with _value: 100.0 - r._value }))
+            |> aggregateWindow(every: {time_alignment}m, fn: mean, createEmpty: false)
+            |> map(fn: (r) => ({{ r with _value: 100.0 - r._value }}))
             '''
         elif query_type == 'mem':
-            query = base_query + '''
+            query = base_query + f'''
             |> filter(fn: (r) => r["location"] == "server_resource_data")
             |> filter(fn: (r) => r["gatewayId"] == "mem")
             |> filter(fn: (r) => r["_measurement"] == "used_percent")
             |> filter(fn: (r) => r["_field"] == "value")
+            |> aggregateWindow(every: {time_alignment}m, fn: mean, createEmpty: false)
             '''
         elif query_type == 'disk':
-            query = base_query + '''
+            query = base_query + f'''
             |> filter(fn: (r) => r["location"] == "server_resource_data")
             |> filter(fn: (r) => r["gatewayId"] == "disk")
             |> filter(fn: (r) => r["_measurement"] == "used_percent")
             |> filter(fn: (r) => r["_field"] == "value")
+            |> aggregateWindow(every: {time_alignment}m, fn: mean, createEmpty: false)
             '''
         
         try:
-            logger.debug(f"{query_type} 데이터 쿼리 실행: {start_str} ~ {end_str}")
+            logger.debug(f"{query_type} 데이터 쿼리 실행: {start_str} ~ {end_str} (간격: {time_alignment}분)")
             results = self.query_api.query(query)
             data = []
             
@@ -251,8 +258,10 @@ class StreamingDataCollector:
                     # 시간 정보를 timezone-naive로 변환
                     record_time = record.get_time()
                     if hasattr(record_time, 'replace'):
-                        # timezone 정보 제거
+                        # timezone 정보 제거 및 초 단위를 0으로 설정
                         record_time = pd.to_datetime(record_time).tz_localize(None)
+                        # 정렬된 시간으로 변환 (초와 마이크로초를 0으로)
+                        record_time = record_time.replace(second=0, microsecond=0)
                     
                     if query_type == 'jvm':
                         data.append({
@@ -276,7 +285,13 @@ class StreamingDataCollector:
             if not df.empty:
                 # 최종적으로 시간 정보 확인 및 정리
                 df['time'] = pd.to_datetime(df['time']).dt.tz_localize(None)
-                logger.info(f"{query_type} 데이터 조회 완료: {len(df)}개")
+                # 중복 제거 (같은 시간에 여러 값이 있을 경우 평균)
+                if query_type == 'jvm':
+                    df = df.groupby(['time', 'application', 'metric_type', 'device_id']).agg({'value': 'mean'}).reset_index()
+                else:
+                    df = df.groupby(['time', 'resource_type', 'measurement', 'device_id']).agg({'value': 'mean'}).reset_index()
+                
+                logger.info(f"{query_type} 데이터 조회 완료: {len(df)}개 (정렬됨)")
             else:
                 logger.warning(f"{query_type} 데이터 조회 결과 없음")
             
