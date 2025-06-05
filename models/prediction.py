@@ -583,7 +583,7 @@ class SystemResourcePredictor:
         impact_data = self.db_manager.fetch_all(impact_query, (
             self.company_domain, self.server_id, start_time, end_time
         ))
-    
+        
     def train_models(self, X=None, y=None, visualization=None):
         """자원별 예측 모델 학습"""
         if visualization is None:
@@ -690,13 +690,9 @@ class SystemResourcePredictor:
                 'device_id': self.device_id
             }
             
-            # 모델 저장 (디바이스 ID 포함)
+            # 모델 저장 - device_id 없이 저장 (시스템 모델이므로)
             model_filename = f"{resource_type}_model.pkl"
             scaler_filename = f"{resource_type}_scaler.pkl"
-            
-            if self.device_id:
-                model_filename = f"{resource_type}_{self.device_id}_model.pkl"
-                scaler_filename = f"{resource_type}_{self.device_id}_scaler.pkl"
             
             model_path = os.path.join(self.model_dir, model_filename)
             scaler_path = os.path.join(self.model_dir, scaler_filename)

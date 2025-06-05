@@ -43,7 +43,7 @@ class StreamingModelManager:
         self.system_predictor = None
         
         logger.info(f"스트리밍 모델 매니저 초기화: {self.company_domain}/{self.device_id}")
-    
+        
     def train_models_from_cache(self, cache_key: str, force_retrain=False) -> bool:
         """캐시된 데이터로 모델 학습"""
         logger.info(f"캐시 기반 모델 학습 시작: {cache_key}")
@@ -64,8 +64,33 @@ class StreamingModelManager:
             # 3. 애플리케이션 영향도 모델 학습
             app_success = self._train_app_models_from_cache(impact_df, features_df, force_retrain)
             
-            # 4. 시스템 예측 모델 학습
-            system_success = self._train_system_models_from_cache(impact_df, force_retrain)
+            # 4. 시스템 예측 모델 학습 - SystemResourcePredictor 직접 사용
+            system_success = False
+            try:
+                X, y = self._prepare_system_training_data(impact_df)
+                
+                if X is not None and y is not None:
+                    # SystemResourcePredictor 인스턴스 생성
+                    from models.prediction import SystemResourcePredictor
+                    system_predictor = SystemResourcePredictor(
+                        self.config, self.company_domain, self.server_id, self.device_id
+                    )
+                    
+                    # 모델 학습
+                    system_success = system_predictor.train_models(X, y)
+                    
+                    if system_success:
+                        self.system_predictor = system_predictor
+                        logger.info("시스템 예측 모델 학습 완료")
+                    else:
+                        logger.error("시스템 예측 모델 학습 실패")
+                else:
+                    logger.error("시스템 모델 학습 데이터 준비 실패")
+                    
+            except Exception as e:
+                logger.error(f"시스템 모델 학습 오류: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
             
             success = app_success and system_success
             
@@ -244,15 +269,11 @@ class StreamingModelManager:
             logger.info(f"영향도 데이터 시간 범위: {impact_df['time'].min()} ~ {impact_df['time'].max()}")
             logger.info(f"영향도 데이터 크기: {len(impact_df)}개")
             
-            # 시간 정렬 간격 설정 (ConfigManager에서 가져오기)
-            time_interval = self.config.get('time_alignment_minutes', 1)  # 기본 1분
-            time_freq = f'{time_interval}min'
-            
-            # 시간별로 그룹화하여 영향도 통계 계산
+            # 시간별로 그룹화하여 영향도 통계 계산 - 1분 단위로 변경
             impact_stats_list = []
             
-            # 설정된 간격으로 정렬
-            impact_df['time_rounded'] = impact_df['time'].dt.floor(time_freq)
+            # 1분 단위로 정렬
+            impact_df['time_rounded'] = impact_df['time'].dt.floor('1min')
             
             for time_point, time_group in impact_df.groupby('time_rounded'):
                 stats_row = {'time': time_point}
@@ -286,95 +307,66 @@ class StreamingModelManager:
             impact_stats_df['day_of_week'] = impact_stats_df.index.dayofweek
             impact_stats_df['is_weekend'] = impact_stats_df['day_of_week'].apply(lambda x: 1 if x >= 5 else 0)
             
-            # 실제 시스템 리소스 데이터 - 캐시된 데이터 직접 사용
-            from data.streaming_collector import StreamingDataCollector
-            collector = StreamingDataCollector(self.config, self.company_domain, self.device_id)
-            _, sys_df = collector.get_training_data()
+            # 실제 시스템 리소스 데이터를 캐시에서 직접 로드
+            cache_file_sys = os.path.join(self.cache_dir, "sys_training_latest.pkl")
             
-            if sys_df.empty:
-                logger.error("시스템 리소스 데이터가 없습니다")
-                return None, None
+            if os.path.exists(cache_file_sys):
+                with open(cache_file_sys, 'rb') as f:
+                    sys_df = pickle.load(f)
+                    
+                # 시간대 정보 제거
+                sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
+                sys_df['time_rounded'] = sys_df['time'].dt.floor('1min')
+                
+                # 시스템 리소스 데이터 필터링 및 피봇
+                sys_filtered = sys_df[
+                    ((sys_df['resource_type'] == 'cpu') & (sys_df['measurement'] == 'usage_user')) |
+                    ((sys_df['resource_type'] == 'mem') & (sys_df['measurement'] == 'used_percent')) |
+                    ((sys_df['resource_type'] == 'disk') & (sys_df['measurement'] == 'used_percent'))
+                ]
+                
+                y_df = sys_filtered.pivot_table(
+                    index='time_rounded',
+                    columns='resource_type',
+                    values='value',
+                    aggfunc='mean'
+                )
+                
+                logger.info(f"시스템 피봇 테이블: {y_df.shape}")
+                
+                # 인덱스 정렬
+                impact_stats_df = impact_stats_df.sort_index()
+                y_df = y_df.sort_index()
+                
+                # 시간 범위 겹침 확인
+                overlap_start = max(impact_stats_df.index.min(), y_df.index.min())
+                overlap_end = min(impact_stats_df.index.max(), y_df.index.max())
+                
+                logger.info(f"시간 범위 - 영향도: {impact_stats_df.index.min()} ~ {impact_stats_df.index.max()}")
+                logger.info(f"시간 범위 - 시스템: {y_df.index.min()} ~ {y_df.index.max()}")
+                logger.info(f"겹치는 범위: {overlap_start} ~ {overlap_end}")
+                
+                if overlap_start < overlap_end:
+                    # 겹치는 시간 범위에서 리샘플링
+                    X = impact_stats_df.loc[overlap_start:overlap_end].resample('5min').mean().fillna(method='ffill')
+                    y = y_df.loc[overlap_start:overlap_end].resample('5min').mean().fillna(method='ffill')
+                    
+                    # 공통 인덱스 확인
+                    common_times = X.index.intersection(y.index)
+                    
+                    if len(common_times) >= 10:
+                        X = X.loc[common_times]
+                        y = y.loc[common_times]
+                        logger.info(f"최종 학습 데이터: X={X.shape}, y={y.shape}")
+                        return X.fillna(0), y.fillna(0)
+                    else:
+                        logger.error(f"공통 시간이 부족: {len(common_times)}개")
+                else:
+                    logger.error("시간 범위가 겹치지 않음")
+            else:
+                logger.error("시스템 리소스 캐시 파일이 없음")
             
-            # 시스템 데이터 시간대 제거 및 동일한 간격으로 정렬
-            sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
-            sys_df['time_rounded'] = sys_df['time'].dt.floor(time_freq)
-            
-            # 시스템 리소스 데이터 필터링
-            sys_filtered = sys_df[
-                ((sys_df['resource_type'] == 'cpu') & (sys_df['measurement'] == 'usage_user')) |
-                ((sys_df['resource_type'] == 'mem') & (sys_df['measurement'] == 'used_percent')) |
-                ((sys_df['resource_type'] == 'disk') & (sys_df['measurement'] == 'used_percent'))
-            ]
-            
-            # 시스템 데이터가 충분한지 확인
-            logger.info(f"필터링된 시스템 데이터: {len(sys_filtered)}개")
-            
-            if len(sys_filtered) < 30:
-                logger.error("필터링된 시스템 데이터가 너무 적습니다")
-                return None, None
-            
-            # 피봇 테이블 생성
-            y_df = sys_filtered.pivot_table(
-                index='time_rounded',
-                columns='resource_type',
-                values='value',
-                aggfunc='mean'
-            )
-            
-            logger.info(f"시스템 피봇 테이블: {y_df.shape}")
-            logger.info(f"시스템 데이터 시간 범위: {y_df.index.min()} ~ {y_df.index.max()}")
-            
-            # 시간 범위 겹침 확인
-            overlap_start = max(impact_stats_df.index.min(), y_df.index.min())
-            overlap_end = min(impact_stats_df.index.max(), y_df.index.max())
-            
-            if overlap_start >= overlap_end:
-                logger.error("영향도와 시스템 데이터의 시간 범위가 겹치지 않습니다")
-                logger.error(f"영향도 시간: {impact_stats_df.index.min()} ~ {impact_stats_df.index.max()}")
-                logger.error(f"시스템 시간: {y_df.index.min()} ~ {y_df.index.max()}")
-                return None, None
-            
-            # 겹치는 시간 범위만 추출
-            X = impact_stats_df.loc[overlap_start:overlap_end]
-            y = y_df.loc[overlap_start:overlap_end]
-            
-            # 동일한 간격으로 리샘플링하여 시간 정렬
-            X = X.resample(time_freq).mean()
-            y = y.resample(time_freq).mean()
-            
-            # NaN 제거 (앞뒤 보간)
-            X = X.interpolate(method='time', limit_direction='both')
-            y = y.interpolate(method='time', limit_direction='both')
-            
-            # 여전히 NaN이 있는 행 제거
-            X = X.dropna()
-            y = y.dropna()
-            
-            # 최종 공통 시간 인덱스
-            common_times = X.index.intersection(y.index)
-            
-            logger.info(f"최종 공통 시간대: {len(common_times)}개")
-            
-            if len(common_times) < 10:
-                logger.error(f"공통 시간대가 너무 적습니다: {len(common_times)}개")
-                return None, None
-            
-            # 매칭된 데이터만 사용
-            X = X.loc[common_times]
-            y = y.loc[common_times]
-            
-            # 모든 컬럼이 있는지 확인
-            required_columns = ['cpu', 'mem', 'disk']
-            missing_columns = [col for col in required_columns if col not in y.columns]
-            
-            if missing_columns:
-                logger.error(f"시스템 데이터에 필수 컬럼이 없습니다: {missing_columns}")
-                return None, None
-            
-            logger.info(f"시스템 학습 데이터 준비 완료: X={X.shape}, y={y.shape}")
-            logger.info(f"최종 시간 범위: {X.index.min()} ~ {X.index.max()}")
-            
-            return X, y
+            return None, None
             
         except Exception as e:
             logger.error(f"시스템 학습 데이터 준비 오류: {e}")
