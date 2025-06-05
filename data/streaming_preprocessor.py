@@ -338,12 +338,16 @@ class StreamingPreprocessor:
             return None
         
         try:
-            # 시간 형식 검증 및 변환
+            # 시간 형식 검증 및 변환 (timezone 제거)
             if not pd.api.types.is_datetime64_any_dtype(jvm_df['time']):
                 jvm_df['time'] = pd.to_datetime(jvm_df['time'])
+            else:
+                jvm_df['time'] = pd.to_datetime(jvm_df['time']).dt.tz_localize(None)
             
             if not pd.api.types.is_datetime64_any_dtype(sys_df['time']):
                 sys_df['time'] = pd.to_datetime(sys_df['time'])
+            else:
+                sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
             
             # 시스템 리소스 데이터 필터링
             sys_filtered = sys_df[
@@ -405,6 +409,8 @@ class StreamingPreprocessor:
                 
         except Exception as e:
             logger.error(f"영향도 계산 중 오류: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
     
     def _compute_correlations(self, jvm_resampled, sys_resampled, common_times):

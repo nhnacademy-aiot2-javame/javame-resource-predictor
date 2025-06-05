@@ -178,6 +178,12 @@ class StreamingDataCollector:
         """InfluxDB에서 데이터 조회 (통합 함수)"""
         device_filter = f' and r["deviceId"] == "{self.device_id}"' if self.device_id else ""
         
+        # timezone aware datetime을 UTC로 변환
+        if start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=None)
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=None)
+        
         start_str = start_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         end_str = end_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         
@@ -243,7 +249,8 @@ class StreamingDataCollector:
             
             df = pd.DataFrame(data)
             if not df.empty:
-                df['time'] = pd.to_datetime(df['time'])
+                # timezone 정보 제거
+                df['time'] = pd.to_datetime(df['time']).dt.tz_localize(None)
                 logger.info(f"{query_type} 데이터 조회 완료: {len(df)}개")
             else:
                 logger.warning(f"{query_type} 데이터 조회 결과 없음")

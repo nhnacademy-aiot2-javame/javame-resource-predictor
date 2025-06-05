@@ -233,10 +233,17 @@ class StreamingModelManager:
     def _prepare_system_training_data(self, impact_df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
         """시스템 모델 학습 데이터 준비"""
         try:
+            # 시간대 정보 제거 및 정렬
+            impact_df = impact_df.copy()
+            impact_df['time'] = pd.to_datetime(impact_df['time']).dt.tz_localize(None)
+            
             # 시간별로 그룹화하여 영향도 통계 계산
             impact_stats_list = []
             
-            for time_point, time_group in impact_df.groupby('time'):
+            # 1분 단위로 정렬
+            impact_df['time_rounded'] = impact_df['time'].dt.floor('1min')
+            
+            for time_point, time_group in impact_df.groupby('time_rounded'):
                 stats_row = {'time': time_point}
                 
                 for resource_type in ['cpu', 'mem', 'disk']:
@@ -285,18 +292,25 @@ class StreamingModelManager:
             common_times = impact_stats_df.index.intersection(y_df.index)
             
             if len(common_times) < 10:
-                logger.warning("시스템 학습 데이터가 부족합니다")
+                logger.warning(f"시스템 학습 데이터가 부족합니다: {len(common_times)}개")
+                # 시간 범위 확인
+                logger.info(f"영향도 통계 시간 범위: {impact_stats_df.index.min()} ~ {impact_stats_df.index.max()}")
+                logger.info(f"시스템 리소스 시간 범위: {y_df.index.min()} ~ {y_df.index.max()}")
                 return None, None
             
             X = impact_stats_df.loc[common_times].fillna(0)
             y = y_df.loc[common_times].fillna(0)
             
+            logger.info(f"시스템 학습 데이터 준비 완료: X={X.shape}, y={y.shape}")
+            
             return X, y
             
         except Exception as e:
             logger.error(f"시스템 학습 데이터 준비 오류: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None, None
-    
+
     def _get_system_resource_data_for_training(self, time_index) -> Optional[pd.DataFrame]:
         """학습용 시스템 리소스 데이터 조회"""
         try:
@@ -316,6 +330,12 @@ class StreamingModelManager:
             if sys_df.empty:
                 return None
             
+            # 시간대 정보 제거
+            sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
+            
+            # 1분 단위로 정렬
+            sys_df['time_rounded'] = sys_df['time'].dt.floor('1min')
+            
             # 시스템 리소스 데이터 필터링 및 피봇
             sys_filtered = sys_df[
                 ((sys_df['resource_type'] == 'cpu') & (sys_df['measurement'] == 'usage_user')) |
@@ -324,11 +344,14 @@ class StreamingModelManager:
             ]
             
             sys_pivot = sys_filtered.pivot_table(
-                index='time',
+                index='time_rounded',
                 columns='resource_type',
                 values='value',
                 aggfunc='mean'
             )
+            
+            # 시간 인덱스를 입력과 동일하게 맞춤
+            sys_pivot = sys_pivot.reindex(time_index, method='nearest', limit=1)
             
             return sys_pivot
             
