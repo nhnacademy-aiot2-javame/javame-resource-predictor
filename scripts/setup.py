@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.logger import logger
 from core.db import DatabaseManager, DB_SCHEMA
 from config.settings import COMPANY_DOMAIN, SERVER_CODE, COLLECTION
+from core.time_utils import get_current_time
 
 def create_tables(db_manager):
     """필요한 데이터베이스 테이블 생성 - 타입 호환성 수정"""

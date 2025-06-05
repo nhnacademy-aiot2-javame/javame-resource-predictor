@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pipelines.data_pipeline import BasePipeline
 from core.config_manager import ConfigManager
 from core.logger import logger
+from core.time_utils import get_current_time
 
 class PredictionPipeline(BasePipeline):
     """예측 실행 파이프라인"""
@@ -154,7 +155,7 @@ class PredictionPipeline(BasePipeline):
             
             # 배치 데이터 준비
             batch_data = []
-            prediction_time = datetime.now()
+            prediction_time = get_current_time()  
             batch_id = prediction_time.strftime("%Y%m%d%H%M%S")
             
             # 시간 파싱

@@ -61,7 +61,7 @@ class StreamingPreprocessor:
             
             meta_file = os.path.join(cache_dir, f"{data_type}_{cache_key}_meta.json")
             metadata = {
-                'created_at': get_current_time().isoformat(),  # datetime.now() 대신
+                'created_at': get_current_time().isoformat(),  
                 'company_domain': self.company_domain,
                 'device_id': self.device_id,
                 f'{data_type}_records': len(data) if hasattr(data, '__len__') else 0
@@ -144,7 +144,7 @@ class StreamingPreprocessor:
                 # 메타데이터도 업데이트
                 meta_file = os.path.join(self.impact_dir, "impact_latest_meta.json")
                 metadata = {
-                    'created_at': datetime.now().isoformat(),
+                    'created_at': get_current_time().isoformat(),
                     'company_domain': self.company_domain,
                     'device_id': self.device_id,
                     'jvm_records': len(jvm_df),
@@ -187,7 +187,7 @@ class StreamingPreprocessor:
             try:
                 # 캐시 파일 시간 확인 (6시간 이내)
                 file_time = datetime.fromtimestamp(os.path.getmtime(features_file))
-                if (datetime.now() - file_time).total_seconds() < 6 * 3600:
+                if (get_current_time() - file_time).total_seconds() < 6 * 3600:
                     with open(features_file, 'rb') as f:
                         features_df = pickle.load(f)
                     
@@ -213,7 +213,7 @@ class StreamingPreprocessor:
                 # 메타데이터도 업데이트
                 meta_file = os.path.join(self.features_dir, "features_latest_meta.json")
                 metadata = {
-                    'created_at': datetime.now().isoformat(),
+                    'created_at': get_current_time().isoformat(),
                     'company_domain': self.company_domain,
                     'device_id': self.device_id,
                     'jvm_records': len(jvm_df),

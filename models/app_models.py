@@ -17,6 +17,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from core.config_manager import ConfigManager
 from core.logger import logger
 from core.db import DatabaseManager
+from core.time_utils import get_current_time
 
 class AppImpactModel:
     """애플리케이션 영향도 모델 클래스 - ConfigManager 연동"""
@@ -93,7 +94,7 @@ class AppImpactModel:
     def load_training_data(self, start_time=None, end_time=None):
         """학습 데이터 로드 - 스트리밍 아키텍처 우선"""
         if end_time is None:
-            end_time = datetime.now()
+            end_time = get_current_time()
         
         if start_time is None:
             # 훈련 기간 설정
@@ -686,11 +687,11 @@ class AppImpactModel:
             elif feature_name in ['hour', 'day_of_week', 'is_weekend']:
                 # 시간 특성 처리
                 if feature_name == 'hour':
-                    aligned_df[feature_name] = datetime.now().hour
+                    aligned_df[feature_name] = get_current_time().hour
                 elif feature_name == 'day_of_week':
-                    aligned_df[feature_name] = datetime.now().weekday()
+                    aligned_df[feature_name] = get_current_time().weekday()
                 elif feature_name == 'is_weekend':
-                    aligned_df[feature_name] = 1 if datetime.now().weekday() >= 5 else 0
+                    aligned_df[feature_name] = 1 if get_current_time().weekday() >= 5 else 0
             elif '_' in feature_name:
                 # 윈도우 특성 처리 (예: cpu_utilization_percent_mean_15min)
                 base_feature = self._extract_base_feature(feature_name)
@@ -747,11 +748,11 @@ class AppImpactModel:
         elif 'process' in feature_name.lower():
             return 400.0  # 프로세스 관련 기본값
         elif 'hour' in feature_name:
-            return datetime.now().hour
+            return get_current_time().hour
         elif 'day_of_week' in feature_name:
-            return datetime.now().weekday()
+            return get_current_time().weekday()
         elif 'is_weekend' in feature_name:
-            return 1 if datetime.now().weekday() >= 5 else 0
+            return 1 if get_current_time().weekday() >= 5 else 0
         else:
             return 0.0  # 기본값    
     def _align_jvm_features(self, input_features, expected_features):
@@ -768,11 +769,11 @@ class AppImpactModel:
             elif feature_name in ['hour', 'day_of_week', 'is_weekend']:
                 # 시간 특성 처리
                 if feature_name == 'hour':
-                    aligned_df[feature_name] = datetime.now().hour
+                    aligned_df[feature_name] = get_current_time().hour
                 elif feature_name == 'day_of_week':
-                    aligned_df[feature_name] = datetime.now().weekday()
+                    aligned_df[feature_name] = get_current_time().weekday()
                 elif feature_name == 'is_weekend':
-                    aligned_df[feature_name] = 1 if datetime.now().weekday() >= 5 else 0
+                    aligned_df[feature_name] = 1 if get_current_time().weekday() >= 5 else 0
             
             else:
                 # 매칭되지 않는 특성은 0으로 채우기
@@ -812,7 +813,7 @@ class AppImpactModel:
             
             import json
             feature_importance_json = json.dumps(resource_metrics['feature_importance'])
-            version = datetime.now().strftime("%Y%m%d%H%M%S")
+            version = get_current_time().strftime("%Y%m%d%H%M%S")  
             device_id = resource_metrics.get('device_id', '')
             
             params = (
@@ -825,7 +826,7 @@ class AppImpactModel:
                 resource_metrics['rmse'],
                 resource_metrics['r2'],
                 feature_importance_json,
-                datetime.now(),
+                get_current_time(),
                 version,
                 device_id
             )

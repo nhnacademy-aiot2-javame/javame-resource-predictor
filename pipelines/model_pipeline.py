@@ -13,6 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pipelines.data_pipeline import BasePipeline
 from core.config_manager import ConfigManager
 from core.logger import logger
+from core.time_utils import get_current_time
 
 class ModelPipeline(BasePipeline):
     """모델 학습 파이프라인"""
@@ -77,7 +78,7 @@ class ModelPipeline(BasePipeline):
                 )
                 
                 # 캐시 기반 학습
-                cache_key = datetime.now().strftime('%Y%m%d')
+                cache_key = get_current_time().strftime('%Y%m%d')
                 success = manager.train_models_from_cache(cache_key)
                 
                 if success:
@@ -142,7 +143,7 @@ class ModelPipeline(BasePipeline):
                         hours=self.config.get('model_training_interval', 360) / 60
                     )
                     
-                    if datetime.now() - last_training > training_interval:
+                    if get_current_time() - last_training > training_interval:
                         logger.info("스케줄 기반 모델 재학습 시작")
                         return self.execute(mode='all', **kwargs)
                     else:
@@ -192,7 +193,7 @@ class ModelPipeline(BasePipeline):
                 return True
             
             last_training = result[0]
-            age_hours = (datetime.now() - last_training).total_seconds() / 3600
+            age_hours = (get_current_time() - last_training).total_seconds() / 3600
             
             logger.info(f"마지막 학습: {last_training}, 경과 시간: {age_hours:.1f}시간")
             
@@ -293,9 +294,9 @@ class ModelPipeline(BasePipeline):
             """
             
             result = db.fetch_one(query, tuple(params))
-            return result[0] if result and result[0] else datetime.now() - timedelta(days=30)
+            return result[0] if result and result[0] else get_current_time() - timedelta(days=30)
             
         except Exception as e:
             logger.warning(f"마지막 학습 시간 조회 오류: {e}")
-            return datetime.now() - timedelta(days=30)
+            return get_current_time() - timedelta(days=30)
     

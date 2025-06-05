@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 from core.config_manager import ConfigManager
 from core.logger import logger
-from core.time_utils import get_current_time
+from core.time_utils import get_current_time, convert_to_local
 
 class StreamingDataCollector:
     """실시간 데이터 처리 수집기 - MySQL 저장 없음"""
@@ -322,7 +322,7 @@ class StreamingDataCollector:
     
     def get_latest_data(self, minutes=30) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """최근 데이터 조회 - 예측용"""
-        end_time = datetime.utcnow()  # UTC 시간 사용
+        end_time = get_current_time()  
         start_time = end_time - timedelta(minutes=minutes)
         
         logger.info(f"최근 데이터 조회: {start_time} ~ {end_time} ({minutes}분)")
@@ -366,7 +366,8 @@ class StreamingDataCollector:
                 
                 if os.path.isfile(filepath):
                     file_time = datetime.fromtimestamp(os.path.getmtime(filepath))
-                    
+                    file_time = convert_to_local(file_time)
+                                        
                     if file_time < cutoff_time:
                         os.remove(filepath)
                         deleted_count += 1

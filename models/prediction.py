@@ -176,7 +176,7 @@ class SystemResourcePredictor:
         prediction_times = []
         
         # 현재 시간을 설정된 간격으로 정렬
-        now = get_current_time()  # datetime.now() 대신
+        now = get_current_time()  
         aligned_now = self.align_prediction_time(now, prediction_interval_minutes)
         next_prediction = aligned_now + timedelta(minutes=prediction_interval_minutes)
         
@@ -332,7 +332,7 @@ class SystemResourcePredictor:
             time_format = '%Y-%m-%d %H:%M:00' if interval_minutes < 60 else '%Y-%m-%d %H:00:00'
             times = [datetime.strptime(t, time_format) for t in predictions['times']]
             
-            prediction_time = get_current_time()  # datetime.now() 대신
+            prediction_time = get_current_time() 
             batch_id = get_current_time().strftime("%Y%m%d%H%M%S")
             device_id = predictions.get('device_id', '')
             
@@ -395,7 +395,7 @@ class SystemResourcePredictor:
                         float(alert['time_to_threshold']),
                         float(alert['current_value']),
                         float(alert['predicted_value']),
-                        datetime.now(),
+                        get_current_time(),
                         batch_id,
                         device_id
                     )
@@ -418,7 +418,7 @@ class SystemResourcePredictor:
     def load_training_data(self, start_time=None, end_time=None):
         """학습 데이터 로드 - 스트리밍 아키텍처 우선"""
         if end_time is None:
-            end_time = datetime.now()
+            end_time = get_current_time()
         
         if start_time is None:
             # 훈련 기간 설정
@@ -937,7 +937,7 @@ class SystemResourcePredictor:
                         metrics[feature_name] = base_value * 0.8  # 최소값은 평균의 80%
         
         # 시간 특성
-        now = get_current_time()  # datetime.now() 대신
+        now = get_current_time()  
         metrics['hour'] = now.hour
         metrics['day_of_week'] = now.weekday()
         metrics['is_weekend'] = 1 if now.weekday() >= 5 else 0

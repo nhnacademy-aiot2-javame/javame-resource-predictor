@@ -4,6 +4,7 @@ JVM 메트릭 기반 시스템 리소스 예측 - 간소화된 설정 파일
 """
 import os
 from datetime import datetime
+from core.time_utils import get_current_time
 
 # ================================
 # 환경 설정
@@ -11,7 +12,7 @@ from datetime import datetime
 ENV = os.environ.get('ENVIRONMENT', 'development')
 DEBUG = ENV == 'development'
 VERSION = "2.0.0"
-BUILD_DATE = datetime.now().strftime("%Y-%m-%d")
+BUILD_DATE = get_current_time().strftime("%Y-%m-%d")
 
 # ================================
 # 데이터베이스 스키마 상수 (변경되지 않는 값들)

@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pipelines.data_pipeline import BasePipeline
 from core.logger import logger
+from core.time_utils import get_current_time
 
 class StreamingDataPipeline(BasePipeline):
     """스트리밍 데이터 파이프라인 - 파일 캐싱 기반"""
@@ -77,7 +78,7 @@ class StreamingDataPipeline(BasePipeline):
             
             # 훈련용 데이터 조회 (기본 3일)
             training_days = kwargs.get('days', 3)
-            end_time = datetime.now()
+            end_time = get_current_time(),
             start_time = end_time - timedelta(days=training_days)
             
             logger.info(f"훈련 데이터 수집: {start_time} ~ {end_time}")

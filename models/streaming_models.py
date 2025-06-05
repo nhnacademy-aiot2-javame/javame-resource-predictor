@@ -13,6 +13,7 @@ from core.config_manager import ConfigManager
 from core.logger import logger
 from models.app_models import AppImpactModel, AppModelManager
 from models.prediction import SystemResourcePredictor
+from core.time_utils import get_current_time
 
 class StreamingModelManager:
     """스트리밍 기반 통합 모델 매니저"""
@@ -438,7 +439,7 @@ class StreamingModelManager:
             """
             
             import json
-            version = f"streaming_{cache_key}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            version = f"streaming_{cache_key}_{get_current_time().strftime('%Y%m%d%H%M%S')}" 
             
             metadata = {
                 'cache_key': cache_key,
@@ -456,7 +457,7 @@ class StreamingModelManager:
                 'cache_based',
                 0.0, 0.0, 0.0,  # 더미 성능 지표
                 json.dumps(metadata),
-                datetime.now(),
+                get_current_time(),
                 version,
                 self.device_id or ''
             )

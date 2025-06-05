@@ -122,7 +122,7 @@ class HealthMonitor:
             # config가 None인 경우 기본값 반환
             if not self.config:
                 return {
-                    'timestamp': datetime.now(),
+                    'timestamp': get_current_time(),
                     'cpu_percent': 0,
                     'memory_percent': 0,
                     'disk_percent': 0,
@@ -145,7 +145,7 @@ class HealthMonitor:
             
             if sys_df.empty:
                 return {
-                    'timestamp': datetime.now(),
+                    'timestamp': get_current_time(),
                     'cpu_percent': 0,
                     'memory_percent': 0,
                     'disk_percent': 0,
@@ -263,7 +263,7 @@ class HealthMonitor:
         except Exception as e:
             logger.error(f"헬스 체크 수행 오류: {e}")
             return {
-                'timestamp': datetime.now(),
+                'timestamp': get_current_time(),
                 'overall_status': 'critical',
                 'error': str(e)
             }
@@ -369,7 +369,7 @@ class HealthMonitor:
                 params.append(device_id)
             
             # 최근 1시간 내 데이터 확인
-            recent_time = datetime.now() - timedelta(hours=1)
+            recent_time = get_current_time() - timedelta(hours=1)
             
             # 시스템 리소스 데이터 확인
             sys_query = f"""
