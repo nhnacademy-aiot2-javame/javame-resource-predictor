@@ -116,7 +116,10 @@ DEFAULT_CONFIG = {
     'batch_size': 1000,
     'query_timeout': 60,
     'retry_count': 3,
-    'connection_pool_size': 5
+    'connection_pool_size': 5,
+
+    'min_training_points': 10,
+    'min_common_timepoints': 10
 }
 
 # ================================

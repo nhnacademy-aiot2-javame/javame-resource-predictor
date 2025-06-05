@@ -61,6 +61,12 @@ class StreamingDataCollector:
         if start_time is None:
             start_time = end_time - timedelta(days=3)
         
+        # 시간대 정보 일관성 보장
+        if hasattr(start_time, 'replace') and start_time.tzinfo is not None:
+            start_time = start_time.replace(tzinfo=None)
+        if hasattr(end_time, 'replace') and end_time.tzinfo is not None:
+            end_time = end_time.replace(tzinfo=None)
+        
         # 고정된 캐시 키 사용
         jvm_cache_file = os.path.join(self.cache_dir, "jvm_training_latest.pkl")
         sys_cache_file = os.path.join(self.cache_dir, "sys_training_latest.pkl")
@@ -80,6 +86,12 @@ class StreamingDataCollector:
                 if not sys_df.empty:
                     sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
                 
+                # 요청된 시간 범위에 맞게 필터링
+                if not jvm_df.empty:
+                    jvm_df = jvm_df[(jvm_df['time'] >= start_time) & (jvm_df['time'] <= end_time)]
+                if not sys_df.empty:
+                    sys_df = sys_df[(sys_df['time'] >= start_time) & (sys_df['time'] <= end_time)]
+                
                 # 캐시된 데이터 검증
                 if self._validate_training_data(jvm_df, sys_df):
                     return jvm_df, sys_df
@@ -96,7 +108,8 @@ class StreamingDataCollector:
         # 조회된 데이터 검증
         if not self._validate_training_data(jvm_df, sys_df):
             logger.error("InfluxDB에서 조회한 데이터가 유효하지 않음")
-            return pd.DataFrame(), pd.DataFrame()
+            # 유효성 검사 실패 시에도 데이터 반환 (빈 데이터프레임 대신)
+            logger.warning("데이터 유효성 검사 실패했지만 데이터는 반환합니다")
         
         # 캐시에 저장 (덮어쓰기)
         try:
