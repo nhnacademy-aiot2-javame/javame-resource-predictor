@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
+from core.time_utils import get_current_time
 
 # 프로젝트 루트 경로 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,7 +19,7 @@ from core.config_manager import ConfigManager
 from core.logger import logger
 
 class StreamingPreprocessor:
-    """스트리밍 전처리기 - 파일 기반 캐싱"""
+    """스트리밍 전처리기"""
     
     def __init__(self, config_manager=None, company_domain=None, device_id=None):
         """초기화"""
@@ -60,7 +61,7 @@ class StreamingPreprocessor:
             
             meta_file = os.path.join(cache_dir, f"{data_type}_{cache_key}_meta.json")
             metadata = {
-                'created_at': datetime.now().isoformat(),
+                'created_at': get_current_time().isoformat(),  # datetime.now() 대신
                 'company_domain': self.company_domain,
                 'device_id': self.device_id,
                 f'{data_type}_records': len(data) if hasattr(data, '__len__') else 0
@@ -113,7 +114,7 @@ class StreamingPreprocessor:
             try:
                 # 캐시 파일 시간 확인 (6시간 이내)
                 file_time = datetime.fromtimestamp(os.path.getmtime(impact_file))
-                if (datetime.now() - file_time).total_seconds() < 6 * 3600:
+                if (get_current_time() - file_time).total_seconds() < 6 * 3600:  #
                     with open(impact_file, 'rb') as f:
                         impact_df = pickle.load(f)
                     
@@ -345,7 +346,7 @@ class StreamingPreprocessor:
             logger.error(f"전처리 캐시 삭제 오류: {e}")
     
     def _calculate_impact_scores(self, jvm_df: pd.DataFrame, sys_df: pd.DataFrame) -> Optional[pd.DataFrame]:
-        """영향도 점수 계산 (기존 로직 유지)"""
+        """영향도 점수 계산 """
         if jvm_df.empty or sys_df.empty:
             logger.warning("영향도 계산을 위한 데이터가 충분하지 않음")
             return None
@@ -425,7 +426,7 @@ class StreamingPreprocessor:
             return None
     
     def _compute_correlations(self, jvm_resampled, sys_resampled, common_times):
-        """상관관계 기반 영향도 계산 (기존 로직)"""
+        """상관관계 기반 영향도 계산 """
         jvm_aligned = jvm_resampled.loc[common_times]
         sys_aligned = sys_resampled.loc[common_times]
         
@@ -473,7 +474,7 @@ class StreamingPreprocessor:
         return impact_scores
     
     def _generate_features(self, jvm_df: pd.DataFrame) -> Optional[pd.DataFrame]:
-        """시계열 특성 생성 (기존 로직 유지)"""
+        """시계열 특성 생성 """
         if jvm_df.empty:
             logger.warning("특성 생성을 위한 데이터가 없음")
             return None
@@ -581,7 +582,7 @@ class StreamingPreprocessor:
         return time_features
     
     def load_cached_impacts(self, cache_key: str = None) -> Optional[pd.DataFrame]:
-        """캐시된 영향도 로드 - 고정 캐시 사용"""
+        """캐시된 영향도 로드"""
         impact_file = os.path.join(self.impact_dir, "impact_latest.pkl")
         
         if os.path.exists(impact_file):
@@ -594,7 +595,7 @@ class StreamingPreprocessor:
         return None
    
     def load_cached_features(self, cache_key: str = None) -> Optional[pd.DataFrame]:
-        """캐시된 특성 로드 - 고정 캐시 사용"""
+        """캐시된 특성 로드"""
         features_file = os.path.join(self.features_dir, "features_latest.pkl")
         
         if os.path.exists(features_file):
@@ -607,7 +608,7 @@ class StreamingPreprocessor:
         return None
    
     def cleanup_cache(self, max_age_hours=48):
-        """오래된 캐시 정리 - 고정 캐시 방식에서는 간소화"""
+        """오래된 캐시 정리"""
         logger.info("캐시 정리 - 고정 캐시 방식으로 자동 관리됨")
         # 필요시 오래된 메타데이터 파일만 정리
         for cache_subdir in [self.impact_dir, self.features_dir]:

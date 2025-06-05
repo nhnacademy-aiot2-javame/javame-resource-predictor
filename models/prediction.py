@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from core.time_utils import get_current_time, align_time
 
 # 로깅 설정 먼저
 import logging
@@ -175,7 +176,7 @@ class SystemResourcePredictor:
         prediction_times = []
         
         # 현재 시간을 설정된 간격으로 정렬
-        now = datetime.now()
+        now = get_current_time()  # datetime.now() 대신
         aligned_now = self.align_prediction_time(now, prediction_interval_minutes)
         next_prediction = aligned_now + timedelta(minutes=prediction_interval_minutes)
         
@@ -331,9 +332,8 @@ class SystemResourcePredictor:
             time_format = '%Y-%m-%d %H:%M:00' if interval_minutes < 60 else '%Y-%m-%d %H:00:00'
             times = [datetime.strptime(t, time_format) for t in predictions['times']]
             
-            prediction_time = datetime.now()  # 현재 시간을 예측 시점으로 사용
-            
-            batch_id = datetime.now().strftime("%Y%m%d%H%M%S")
+            prediction_time = get_current_time()  # datetime.now() 대신
+            batch_id = get_current_time().strftime("%Y%m%d%H%M%S")
             device_id = predictions.get('device_id', '')
             
             logger.info(f"예측 결과 저장: {len(times)}개 포인트, {interval_minutes}분 간격")
@@ -583,7 +583,7 @@ class SystemResourcePredictor:
         impact_data = self.db_manager.fetch_all(impact_query, (
             self.company_domain, self.server_id, start_time, end_time
         ))
-        
+
     def train_models(self, X=None, y=None, visualization=None):
         """자원별 예측 모델 학습"""
         if visualization is None:
@@ -771,7 +771,7 @@ class SystemResourcePredictor:
             """
             
             feature_importance_json = json.dumps(resource_metrics['feature_importance'])
-            version = datetime.now().strftime("%Y%m%d%H%M%S")
+            version = get_current_time().strftime("%Y%m%d%H%M%S")
             device_id = resource_metrics.get('device_id', '')
             
             params = (
@@ -784,7 +784,7 @@ class SystemResourcePredictor:
                 resource_metrics['rmse'],
                 resource_metrics['r2'],
                 feature_importance_json,
-                datetime.now(),
+                get_current_time(),
                 version,
                 device_id
             )
@@ -937,7 +937,7 @@ class SystemResourcePredictor:
                         metrics[feature_name] = base_value * 0.8  # 최소값은 평균의 80%
         
         # 시간 특성
-        now = datetime.now()
+        now = get_current_time()  # datetime.now() 대신
         metrics['hour'] = now.hour
         metrics['day_of_week'] = now.weekday()
         metrics['is_weekend'] = 1 if now.weekday() >= 5 else 0
@@ -1060,7 +1060,7 @@ class SystemResourcePredictor:
                 
                 # 메트릭만 저장 (특성 중요도 없음)
                 feature_importance = "{}"
-                version = datetime.now().strftime("%Y%m%d%H%M%S_perf")
+                version = get_current_time().strftime("%Y%m%d%H%M%S_perf")
                 
                 perf_params = [
                     self.company_domain,
@@ -1072,7 +1072,7 @@ class SystemResourcePredictor:
                     rmse,
                     r2,
                     feature_importance,
-                    datetime.now(),
+                    get_current_time(), 
                     version,
                     self.device_id if self.device_id else ""
                 ]
@@ -1084,9 +1084,9 @@ class SystemResourcePredictor:
     def _create_dummy_training_data(self, start_time=None, end_time=None):
         """테스트용 더미 학습 데이터 생성 - 올바른 특성 구조"""
         if start_time is None:
-            start_time = datetime.now() - timedelta(days=3)
+            start_time = get_current_time() - timedelta(days=3)
         if end_time is None:
-            end_time = datetime.now()
+            end_time = get_current_time()
             
         logger.info(f"테스트용 더미 학습 데이터 생성: {start_time} ~ {end_time}")
         

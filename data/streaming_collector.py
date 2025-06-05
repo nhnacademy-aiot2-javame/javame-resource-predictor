@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 from core.config_manager import ConfigManager
 from core.logger import logger
+from core.time_utils import get_current_time
 
 class StreamingDataCollector:
     """실시간 데이터 처리 수집기 - MySQL 저장 없음"""
@@ -56,7 +57,7 @@ class StreamingDataCollector:
     def get_training_data(self, start_time=None, end_time=None, cache_hours=6, force_refresh=False) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """학습용 데이터 조회 - 캐시 우선 사용"""
         if end_time is None:
-            end_time = datetime.now()
+            end_time = get_current_time()  
         
         if start_time is None:
             start_time = end_time - timedelta(days=3)
@@ -191,8 +192,8 @@ class StreamingDataCollector:
             return False
         
         file_time = datetime.fromtimestamp(os.path.getmtime(cache_file))
-        return (datetime.now() - file_time).total_seconds() < valid_hours * 3600
-        
+        return (get_current_time() - file_time).total_seconds() < valid_hours * 3600
+            
     def _query_influxdb_data(self, start_time: datetime, end_time: datetime, query_type: str) -> pd.DataFrame:
         """InfluxDB에서 데이터 조회 (통합 함수)"""
         device_filter = f' and r["deviceId"] == "{self.device_id}"' if self.device_id else ""
@@ -356,7 +357,7 @@ class StreamingDataCollector:
         """오래된 캐시 정리"""
         logger.info(f"캐시 정리 시작: {max_age_hours}시간 이상 파일 삭제")
         
-        cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+        cutoff_time = get_current_time() - timedelta(hours=max_age_hours)
         deleted_count = 0
         
         try:

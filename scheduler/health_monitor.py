@@ -18,6 +18,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.config_manager import ConfigManager
 from core.logger import logger
 from core.db import DatabaseManager
+from core.time_utils import get_current_time
 
 class HealthMonitor:
     """시스템 헬스 모니터"""
@@ -171,7 +172,7 @@ class HealthMonitor:
                 latest_disk = disk_data['value'].iloc[-1]
             
             metrics = {
-                'timestamp': datetime.now(),
+                'timestamp': get_current_time(),
                 'cpu_percent': latest_cpu,
                 'memory_percent': latest_mem,
                 'disk_percent': latest_disk,
@@ -185,7 +186,7 @@ class HealthMonitor:
         except Exception as e:
             logger.error(f"원격 메트릭 수집 오류: {e}")
             return {
-                'timestamp': datetime.now(),
+                'timestamp': get_current_time(),
                 'cpu_percent': 0,
                 'memory_percent': 0,
                 'disk_percent': 0,
@@ -216,7 +217,7 @@ class HealthMonitor:
     def perform_health_check(self) -> Dict[str, Any]:
         """전체 시스템 헬스 체크 수행"""
         health_status = {
-            'timestamp': datetime.now(),
+            'timestamp': get_current_time(),
             'overall_status': 'healthy',
             'components': {},
             'alerts': []
@@ -470,9 +471,9 @@ class HealthMonitor:
             latest_training = results[0][4]  # trained_at
             
             # 마지막 학습 시간 확인
-            max_age_hours = self.config.get('model_max_age_hours', 168)  # 7일
-            age_hours = (datetime.now() - latest_training).total_seconds() / 3600
-            
+            max_age_hours = self.config.get('model_max_age_hours', 168)
+            age_hours = (get_current_time() - latest_training).total_seconds() / 3600
+
             if age_hours > max_age_hours:
                 warnings.append(f"모델이 오래됨 ({age_hours:.1f}시간)")
             
@@ -534,7 +535,7 @@ class HealthMonitor:
                 params.append(device_id)
             
             # 최근 예측 확인
-            recent_time = datetime.now() - timedelta(hours=2)
+            recent_time = get_current_time() - timedelta(hours=2)
             
             pred_query = f"""
             SELECT 

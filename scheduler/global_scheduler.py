@@ -20,6 +20,7 @@ from pipelines.streaming_pipeline import StreamingDataPipeline
 from pipelines.model_pipeline import ModelPipeline
 from pipelines.prediction_pipeline import PredictionPipeline
 from scheduler.health_monitor import HealthMonitor
+from core.time_utils import get_current_time
 
 class StreamingCompanyProcessor:
     """스트리밍 기반 회사별 처리기"""
@@ -281,7 +282,7 @@ class StreamingGlobalScheduler:
         """스트리밍 글로벌 스케줄러 초기화"""
         self.is_running = False
         self.is_stopping = False
-        self._start_time = datetime.now()
+        self._start_time = get_current_time()
         self.force_refresh = force_refresh
         
         # 글로벌 설정 로드
@@ -668,7 +669,7 @@ class StreamingGlobalScheduler:
                 'total_companies': len(self.company_processors),
                 'companies': {},
                 'schedule_config': self.schedule_config,
-                'uptime': str(datetime.now() - self._start_time) if hasattr(self, '_start_time') else None
+                'uptime': str(get_current_time() - self._start_time) if hasattr(self, '_start_time') else None
             }
             
             # 회사별 상태 정보
