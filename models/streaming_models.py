@@ -244,14 +244,11 @@ class StreamingModelManager:
             logger.info(f"영향도 데이터 시간 범위: {impact_df['time'].min()} ~ {impact_df['time'].max()}")
             logger.info(f"영향도 데이터 크기: {len(impact_df)}개")
             
-            # ConfigManager에서 시간 정렬 설정 가져오기
-            resample_interval = self.config.get('resample_interval', '5min')
-            
-            # 시간별로 그룹화하여 영향도 통계 계산 - 설정된 간격 사용
+            # 시간별로 그룹화하여 영향도 통계 계산
             impact_stats_list = []
             
-            # 영향도 데이터도 동일한 간격으로 정렬
-            impact_df['time_rounded'] = impact_df['time'].dt.floor(resample_interval)
+            # 5분 단위로 정렬 (더 많은 데이터 포인트 확보)
+            impact_df['time_rounded'] = impact_df['time'].dt.floor('5min')
             
             for time_point, time_group in impact_df.groupby('time_rounded'):
                 stats_row = {'time': time_point}
@@ -288,14 +285,7 @@ class StreamingModelManager:
             # 실제 시스템 리소스 데이터 - 캐시된 데이터 직접 사용
             from data.streaming_collector import StreamingDataCollector
             collector = StreamingDataCollector(self.config, self.company_domain, self.device_id)
-            
-            # 영향도 데이터와 동일한 시간 범위로 시스템 데이터 조회
-            start_time = impact_df['time'].min()
-            end_time = impact_df['time'].max()
-            
-            logger.info(f"시스템 데이터 조회 범위: {start_time} ~ {end_time}")
-            
-            _, sys_df = collector.get_training_data(start_time, end_time)
+            _, sys_df = collector.get_training_data()
             
             if sys_df.empty:
                 logger.warning("시스템 리소스 데이터가 없어 더미 데이터 사용")
@@ -309,9 +299,9 @@ class StreamingModelManager:
                     }
                 )
             else:
-                # 시스템 데이터 시간대 제거 및 동일한 간격으로 정렬
+                # 시스템 데이터 시간대 제거 및 피봇
                 sys_df['time'] = pd.to_datetime(sys_df['time']).dt.tz_localize(None)
-                sys_df['time_rounded'] = sys_df['time'].dt.floor(resample_interval)
+                sys_df['time_rounded'] = sys_df['time'].dt.floor('5min')
                 
                 # 시스템 리소스 데이터 필터링 및 피봇
                 sys_filtered = sys_df[
@@ -333,46 +323,37 @@ class StreamingModelManager:
             impact_stats_df = impact_stats_df.sort_index()
             y_df = y_df.sort_index()
             
-            # 공통 시간 찾기
+            # 공통 시간 찾기 - 정확한 매칭
             common_times = impact_stats_df.index.intersection(y_df.index)
             
-            logger.info(f"공통 시간대: {len(common_times)}개")
+            logger.info(f"공통 시간대 (정확한 매칭): {len(common_times)}개")
             
-            # 최소 데이터 포인트 요구사항을 설정에서 가져오기
-            min_training_points = self.config.get('min_training_points', 10)
-            
-            if len(common_times) < min_training_points:
-                logger.warning(f"공통 시간대가 부족함 ({len(common_times)}개 < {min_training_points}개)")
+            # 공통 시간이 부족하면 가장 가까운 시간으로 매칭
+            if len(common_times) < 50:  # 최소 50개 필요
+                logger.warning("정확한 시간 매칭이 부족하여 근사 매칭 사용")
                 
-                # 시간 범위가 겹치는 부분만 사용하여 리샘플링
+                # 시간 범위가 겹치는 부분만 사용
                 overlap_start = max(impact_stats_df.index.min(), y_df.index.min())
                 overlap_end = min(impact_stats_df.index.max(), y_df.index.max())
                 
-                logger.info(f"겹치는 시간 범위: {overlap_start} ~ {overlap_end}")
-                
                 if overlap_start < overlap_end:
-                    # 겹치는 범위에서 데이터 추출
                     X = impact_stats_df.loc[overlap_start:overlap_end]
                     y = y_df.loc[overlap_start:overlap_end]
                     
-                    # 동일한 간격으로 리샘플링
-                    X = X.resample(resample_interval).mean().fillna(method='ffill', limit=3)
-                    y = y.resample(resample_interval).mean().fillna(method='ffill', limit=3)
+                    # 리샘플링으로 시간 정렬
+                    X = X.resample('5min').mean().fillna(method='ffill')
+                    y = y.resample('5min').mean().fillna(method='ffill')
                     
                     # 공통 인덱스 다시 확인
                     common_times = X.index.intersection(y.index)
                     
-                    if len(common_times) >= min_training_points:
+                    if len(common_times) >= 10:
                         X = X.loc[common_times]
                         y = y.loc[common_times]
-                        logger.info(f"리샘플링으로 {len(common_times)}개 데이터 확보")
+                        logger.info(f"근사 매칭으로 {len(common_times)}개 데이터 확보")
                         return X.fillna(0), y.fillna(0)
-                    else:
-                        logger.error(f"리샘플링 후에도 데이터 부족: {len(common_times)}개")
-                        return None, None
-                else:
-                    logger.error("시간 범위가 전혀 겹치지 않음")
-                    return None, None
+                
+                return None, None
             
             # 매칭된 데이터만 사용
             X = impact_stats_df.loc[common_times].fillna(0)
