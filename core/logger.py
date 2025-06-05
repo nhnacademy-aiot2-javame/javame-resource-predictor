@@ -31,10 +31,19 @@ def set_log_context(company_domain=None, server_id=None, device_id=None):
 class ContextFilter(logging.Filter):
     """로그 레코드에 컨텍스트 정보 추가하는 필터"""
     def filter(self, record):
-        record.company = log_context['company_domain'] or '-'
-        record.server_id = log_context['server_id'] or '-'
-        record.device_id = log_context['device_id'] or '-'
-        record.request_id = log_context['request_id'] or '-'
+        # 외부 라이브러리 로거는 필터링하지 않음
+        if record.name.startswith(('matplotlib', 'urllib3', 'requests', 'influxdb', 'mysql')):
+            # 외부 라이브러리는 기본값만 설정
+            record.company = '-'
+            record.server_id = '-'
+            record.device_id = '-'
+            record.request_id = '-'
+        else:
+            # 내부 로거는 컨텍스트 정보 사용
+            record.company = log_context['company_domain'] or '-'
+            record.server_id = log_context['server_id'] or '-'
+            record.device_id = log_context['device_id'] or '-'
+            record.request_id = log_context['request_id'] or '-'
         return True
 
 def setup_logger():
@@ -56,9 +65,8 @@ def setup_logger():
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
     
-    # 컨텍스트 필터 추가
+    # 컨텍스트 필터 생성
     context_filter = ContextFilter()
-    logger.addFilter(context_filter)
     
     # 확장된 로그 포맷 (컨텍스트 정보 포함)
     log_format = LOGGING.get("format", "%(asctime)s - [%(company)s:%(server_id)s:%(device_id)s] - %(request_id)s - %(levelname)s - %(message)s")
@@ -70,6 +78,7 @@ def setup_logger():
     file_handler.setLevel(log_level)
     file_formatter = logging.Formatter(log_format)
     file_handler.setFormatter(file_formatter)
+    file_handler.addFilter(context_filter)  # 핸들러에 필터 추가
     logger.addHandler(file_handler)
     
     # 콘솔 핸들러 추가
@@ -77,7 +86,24 @@ def setup_logger():
     console_handler.setLevel(log_level)
     console_formatter = logging.Formatter(log_format)
     console_handler.setFormatter(console_formatter)
+    console_handler.addFilter(context_filter)  # 핸들러에 필터 추가
     logger.addHandler(console_handler)
+    
+    # 외부 라이브러리 로거 레벨 조정
+    external_loggers = [
+        'matplotlib', 'matplotlib.font_manager', 'matplotlib.pyplot',
+        'matplotlib.colorbar', 'matplotlib.backend_bases', 'matplotlib.text',
+        'urllib3', 'urllib3.connectionpool', 'urllib3.util.retry',
+        'requests', 'requests.packages.urllib3',
+        'influxdb_client', 'influxdb_client.client',
+        'mysql', 'mysql.connector'
+    ]
+    
+    for logger_name in external_loggers:
+        ext_logger = logging.getLogger(logger_name)
+        ext_logger.setLevel(logging.WARNING)
+        # 상위로 전파 방지
+        ext_logger.propagate = False
     
     return logger
 

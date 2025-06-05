@@ -6,6 +6,9 @@ JVM 메트릭 기반 시스템 리소스 예측 - 통합 예측 모델
 - 기존 코드 호환성 유지
 """
 import os
+# matplotlib 백엔드 설정을 임포트 전에 수행
+os.environ['MPLBACKEND'] = 'Agg'
+
 import pickle
 import numpy as np
 import pandas as pd
@@ -14,6 +17,20 @@ from datetime import datetime, timedelta
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# 로깅 설정 먼저
+import logging
+# matplotlib 관련 로거를 임포트 전에 미리 설정
+for logger_name in ['matplotlib', 'matplotlib.pyplot', 'matplotlib.font_manager', 
+                    'matplotlib.colorbar', 'matplotlib.backend_bases', 'matplotlib.text',
+                    'matplotlib.contour', 'matplotlib._api', 'matplotlib.cbook']:
+    mpl_logger = logging.getLogger(logger_name)
+    mpl_logger.setLevel(logging.ERROR)  # ERROR 레벨로 설정
+    mpl_logger.propagate = False
+
+# 이제 matplotlib 임포트
+import matplotlib
+matplotlib.use('Agg')  # GUI 백엔드 비활성화
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -21,16 +38,6 @@ from core.config_manager import ConfigManager
 from core.logger import logger
 from core.db import DatabaseManager
 from models.app_models import AppModelManager
-os.environ['MPLBACKEND'] = 'Agg'
-
-# matplotlib import 전에 로거 설정
-import logging
-# matplotlib 로거 레벨을 WARNING으로 설정하여 INFO 메시지 방지
-logging.getLogger('matplotlib').setLevel(logging.WARNING)
-logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
-
-import matplotlib
-matplotlib.use('Agg')  # GUI 백엔드 비활성화
 
 class SystemResourcePredictor:
     """시스템 자원 예측기 클래스 - 시간 동기화 개선"""
