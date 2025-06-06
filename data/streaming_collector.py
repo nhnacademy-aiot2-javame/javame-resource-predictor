@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 from core.config_manager import ConfigManager
 from core.logger import logger
-from core.time_utils import get_current_time, convert_to_local
+from core.time_utils import get_current_time, convert_to_local,convert_to_utc
 
 class StreamingDataCollector:
     """실시간 데이터 처리 수집기 - MySQL 저장 없음"""
@@ -198,14 +198,13 @@ class StreamingDataCollector:
         """InfluxDB에서 데이터 조회 (통합 함수)"""
         device_filter = f' and r["deviceId"] == "{self.device_id}"' if self.device_id else ""
         
-        # timezone aware datetime을 UTC로 변환
-        if start_time.tzinfo is None:
-            start_time = start_time.replace(tzinfo=None)
-        if end_time.tzinfo is None:
-            end_time = end_time.replace(tzinfo=None)
+        start_utc = convert_to_utc(start_time)
+        end_utc = convert_to_utc(end_time)
         
-        start_str = start_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-        end_str = end_time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        # InfluxDB는 UTC 시간을 사용하므로 UTC로 변환
+        start_str = start_utc.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        end_str = end_utc.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+
         
         # 시간 정렬 간격 가져오기
         time_alignment = self.config.get('time_alignment_minutes', 1)
@@ -325,9 +324,9 @@ class StreamingDataCollector:
         end_time = get_current_time()  
         start_time = end_time - timedelta(minutes=minutes)
         
-        logger.info(f"최근 데이터 조회: {start_time} ~ {end_time} ({minutes}분)")
+        logger.info(f"최근 데이터 조회 (로컬): {start_time} ~ {end_time} ({minutes}분)")
         
-        # 최근 데이터는 캐시하지 않고 직접 조회
+        # InfluxDB 쿼리를 위해 UTC로 변환은 _query_influxdb_data에서 처리
         jvm_df = self._query_jvm_metrics(start_time, end_time)
         sys_df = self._query_system_resources(start_time, end_time)
         
