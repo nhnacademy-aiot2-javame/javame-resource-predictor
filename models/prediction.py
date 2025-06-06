@@ -39,6 +39,7 @@ from core.config_manager import ConfigManager
 from core.logger import logger
 from core.db import DatabaseManager
 from models.app_models import AppModelManager
+from core.time_utils import align_time
 
 class SystemResourcePredictor:
     """시스템 자원 예측기 클래스 - 시간 동기화 개선"""
@@ -135,7 +136,6 @@ class SystemResourcePredictor:
         
         return time_val
 
-    # predict_future_usage 메서드 수정 부분
     def predict_future_usage(self, hours=None):
         """미래 자원 사용량 예측 - 설정 가능한 간격으로 예측"""
         if hours is None:
@@ -185,7 +185,7 @@ class SystemResourcePredictor:
         logger.info(f"get_current_time() 결과: {now}")
         logger.info(f"datetime.now() 결과: {datetime.now()}")
         
-        aligned_now = self.align_prediction_time(now, prediction_interval_minutes)
+        aligned_now = align_time(now, prediction_interval_minutes)
         logger.info(f"align_prediction_time 결과: {aligned_now}")
         
         next_prediction = aligned_now + timedelta(minutes=prediction_interval_minutes)
