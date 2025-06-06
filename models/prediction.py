@@ -178,7 +178,13 @@ class SystemResourcePredictor:
         # 현재 시간을 설정된 간격으로 정렬
         now = get_current_time()  # 이미 한국 시간
         aligned_now = self.align_prediction_time(now, prediction_interval_minutes)
+        
+        # 첫 예측은 다음 정각부터 시작
         next_prediction = aligned_now + timedelta(minutes=prediction_interval_minutes)
+        
+        logger.info(f"현재 시간 (KST): {now}")
+        logger.info(f"정렬된 현재 시간: {aligned_now}")
+        logger.info(f"첫 예측 시간: {next_prediction}")
         
         # 설정된 간격으로 예측
         total_predictions = hours * 60 // prediction_interval_minutes
@@ -230,6 +236,10 @@ class SystemResourcePredictor:
             'device_id': self.device_id,
             'prediction_interval_minutes': prediction_interval_minutes
         }
+        
+        # 디버깅 로그 추가
+        if prediction_times:
+            logger.info(f"예측 시간 범위: {prediction_times[0]} ~ {prediction_times[-1]}")
         
         logger.info(f"예측 완료: {len(prediction_times)}개 포인트, {prediction_interval_minutes}분 간격")
         
@@ -334,17 +344,17 @@ class SystemResourcePredictor:
             # 시간 파싱 (간격에 따른 포맷 결정)
             time_format = '%Y-%m-%d %H:%M:00' if interval_minutes < 60 else '%Y-%m-%d %H:00:00'
             
-            # 시간 파싱 시 이미 KST 시간임을 명시
-            times = []
-            for t in predictions['times']:
-                parsed_time = datetime.strptime(t, time_format)
-                # 파싱된 시간은 이미 KST이므로 추가 변환 불필요
-                times.append(parsed_time)
+            # 문자열을 datetime으로 변환 (이미 KST)
+            times = [datetime.strptime(t, time_format) for t in predictions['times']]
             
-            prediction_time = get_current_time() 
+            prediction_time = get_current_time()  # KST
             batch_id = get_current_time().strftime("%Y%m%d%H%M%S")
             device_id = predictions.get('device_id', '')
             
+            logger.info(f"예측 결과 저장 시작")
+            logger.info(f"prediction_time (KST): {prediction_time}")
+            logger.info(f"target_time 범위: {times[0]} ~ {times[-1]}")
+            logger.info(f"예측 개수: {len(times)}개, 간격: {interval_minutes}분")
             logger.info(f"예측 결과 저장: {len(times)}개 포인트, {interval_minutes}분 간격")
             
             # 자원별 예측 결과
