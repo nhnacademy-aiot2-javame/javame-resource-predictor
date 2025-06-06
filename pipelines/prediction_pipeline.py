@@ -78,6 +78,10 @@ class PredictionPipeline(BasePipeline):
                 predictions = manager.predict_with_streaming_data(minutes=30)
                 
                 if predictions:
+                    logger.info("========== 예측 결과 받음 ==========")
+                    logger.info(f"predictions 타입: {type(predictions)}")
+                    logger.info(f"predictions 키: {predictions.keys() if isinstance(predictions, dict) else 'not dict'}")
+                    
                     # 예측 결과 저장
                     self._save_predictions(predictions)
                     

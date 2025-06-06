@@ -527,6 +527,11 @@ class StreamingModelManager:
             
             if predictions:
                 logger.info("스트리밍 기반 예측 완료")
+                logger.info(f"예측 결과 키: {predictions.keys()}")
+                logger.info(f"예측 시간 개수: {len(predictions.get('times', []))}")
+                if predictions.get('times'):
+                    logger.info(f"첫 예측 시간: {predictions['times'][0]}")
+                    logger.info(f"마지막 예측 시간: {predictions['times'][-1]}")
                 return predictions
             else:
                 logger.error("시스템 리소스 예측 실패")
