@@ -150,6 +150,8 @@ class PredictionPipeline(BasePipeline):
             return False
     def _save_predictions(self, predictions) -> bool:
         """예측 결과 저장"""
+        logger.info("========== _save_predictions 시작 ==========")
+        
         try:
             db = self.get_db_manager()
             
@@ -158,8 +160,13 @@ class PredictionPipeline(BasePipeline):
             prediction_time = get_current_time()  
             batch_id = prediction_time.strftime("%Y%m%d%H%M%S")
             
+            logger.info(f"prediction_time (현재 KST): {prediction_time}")
+            
             # 시간 파싱
             times = predictions.get('times', [])
+            logger.info(f"받은 times 타입: {type(times[0]) if times else 'empty'}")
+            logger.info(f"첫 번째 time 값: {times[0] if times else 'empty'}")
+            
             if isinstance(times[0], str):
                 # 시간 포맷 결정
                 interval_minutes = predictions.get('prediction_interval_minutes', 5)
@@ -171,6 +178,8 @@ class PredictionPipeline(BasePipeline):
                     parsed_time = datetime.strptime(t, time_format)
                     parsed_times.append(parsed_time)
                 times = parsed_times
+                
+                logger.info(f"파싱 후 target_time 범위: {times[0]} ~ {times[-1]}")
             
             # 각 리소스별 예측 저장
             for resource_type, values in predictions.get('predictions', {}).items():
