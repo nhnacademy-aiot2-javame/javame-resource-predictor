@@ -182,8 +182,8 @@ class SystemResourcePredictor:
         
         # 현재 시간을 설정된 간격으로 정렬
         now = get_current_time()  # 이미 한국 시간
-        logger.info(f"get_current_time() 결과: {now}")
-        logger.info(f"datetime.now() 결과: {datetime.now()}")
+        logger.info(f"DEBUG: get_current_time() = {now}")
+        logger.info(f"DEBUG: datetime.now() = {datetime.now()}")
         
         aligned_now = align_time(now, prediction_interval_minutes)
         logger.info(f"align_prediction_time 결과: {aligned_now}")
@@ -191,6 +191,9 @@ class SystemResourcePredictor:
         next_prediction = aligned_now + timedelta(minutes=prediction_interval_minutes)
         logger.info(f"첫 예측 시간 (next_prediction): {next_prediction}")
         
+
+        logger.info(f"DEBUG: aligned_now = {aligned_now}")
+        logger.info(f"DEBUG: next_prediction = {next_prediction}")
         # 설정된 간격으로 예측
         total_predictions = hours * 60 // prediction_interval_minutes
         
