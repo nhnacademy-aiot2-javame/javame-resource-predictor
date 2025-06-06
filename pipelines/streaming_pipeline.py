@@ -78,7 +78,7 @@ class StreamingDataPipeline(BasePipeline):
             
             # 훈련용 데이터 조회 (기본 3일)
             training_days = kwargs.get('days', 3)
-            end_time = get_current_time(),
+            end_time = get_current_time()
             start_time = end_time - timedelta(days=training_days)
             
             logger.info(f"훈련 데이터 수집: {start_time} ~ {end_time}")
