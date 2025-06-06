@@ -62,31 +62,34 @@ jobs:
             echo "PREDICTOR_IMAGE_TAG=${{ github.sha }}" >> .env
           fi
           
-          # resource-predictor 서비스만 안전하게 재시작
-          echo "현재 실행 중인 서비스 확인..."
-          docker-compose ps
+          # 현재 사용 중인 이미지 태그 확인
+          OLD_TAG=$(grep PREDICTOR_IMAGE_TAG .env | cut -d'=' -f2)
           
-          # resource-predictor만 중지 (다른 서비스는 영향 없음)
+          # resource-predictor만 중지
           echo "resource-predictor 서비스 중지..."
           docker-compose stop resource-predictor || echo "서비스가 이미 중지됨"
           
-          # 컨테이너 삭제 (--volumes 옵션 제외하여 볼륨 유지)
+          # 컨테이너 삭제
           echo "기존 resource-predictor 컨테이너 제거..."
           docker-compose rm -f resource-predictor || echo "컨테이너가 이미 제거됨"
           
-          # 새 이미지 pull (다른 서비스 영향 없음)
-          echo "새 이미지 다운로드..."
-          docker-compose pull resource-predictor
+          # 기존 이미지 삭제 (추가된 부분)
+          echo "기존 이미지 삭제..."
+          docker rmi lim98/resource-predictor:$OLD_TAG || echo "이미지가 없거나 사용 중"
           
-          # resource-predictor만 재시작 (--no-deps로 의존성 서비스 제외)
+          # 새 이미지 강제 pull
+          echo "새 이미지 다운로드..."
+          docker pull lim98/resource-predictor:${{ github.sha }}
+          
+          # resource-predictor만 재시작
           echo "resource-predictor 서비스 시작..."
-          docker-compose up -d --no-deps --no-recreate resource-predictor
+          docker-compose up -d --no-deps resource-predictor
           
           # 서비스 상태 확인
           echo "배포 완료. 서비스 상태 확인..."
           sleep 5
           docker-compose ps | grep resource-predictor
           
-          # 최근 로그 확인 (에러 체크용)
+          # 최근 로그 확인
           echo "최근 로그 확인..."
           docker-compose logs --tail=20 resource-predictor
