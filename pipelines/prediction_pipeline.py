@@ -161,7 +161,16 @@ class PredictionPipeline(BasePipeline):
             # 시간 파싱
             times = predictions.get('times', [])
             if isinstance(times[0], str):
-                times = [datetime.strptime(t, '%Y-%m-%d %H:%M:00') for t in times]
+                # 시간 포맷 결정
+                interval_minutes = predictions.get('prediction_interval_minutes', 5)
+                time_format = '%Y-%m-%d %H:%M:00' if interval_minutes < 60 else '%Y-%m-%d %H:00:00'
+                
+                # 문자열을 datetime으로 변환 (이미 KST)
+                parsed_times = []
+                for t in times:
+                    parsed_time = datetime.strptime(t, time_format)
+                    parsed_times.append(parsed_time)
+                times = parsed_times
             
             # 각 리소스별 예측 저장
             for resource_type, values in predictions.get('predictions', {}).items():
@@ -170,7 +179,7 @@ class PredictionPipeline(BasePipeline):
                         self.config.get('company_domain'),
                         self.config.get_server_id(),
                         prediction_time,
-                        target_time,
+                        target_time,  # 이미 KST 시간
                         resource_type,
                         float(value),
                         None,  # actual_value

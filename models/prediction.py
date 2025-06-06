@@ -176,16 +176,16 @@ class SystemResourcePredictor:
         prediction_times = []
         
         # 현재 시간을 설정된 간격으로 정렬
-        now = get_current_time()  
+        now = get_current_time()  # 이미 한국 시간
         aligned_now = self.align_prediction_time(now, prediction_interval_minutes)
         next_prediction = aligned_now + timedelta(minutes=prediction_interval_minutes)
         
         # 설정된 간격으로 예측
-        total_predictions = hours * 60 // prediction_interval_minutes  # 총 예측 포인트 수
+        total_predictions = hours * 60 // prediction_interval_minutes
         
         for i in range(total_predictions):
             pred_time = next_prediction + timedelta(minutes=i * prediction_interval_minutes)
-            prediction_times.append(pred_time)
+            prediction_times.append(pred_time)  # 한국 시간으로 유지
             
             # 3단계: 영향도 → 영향도 통계 계산
             impact_stats = self._calculate_impact_statistics(app_impacts, pred_time)
@@ -235,7 +235,6 @@ class SystemResourcePredictor:
         
         return result
 
-    # update_prediction_accuracy 메서드 수정 부분
     def update_prediction_accuracy(self):
         """예측 정확도 업데이트 - 분 단위 정각 매칭"""
         # 디바이스 필터 설정
@@ -246,16 +245,20 @@ class SystemResourcePredictor:
             device_filter = " AND device_id = %s"
             params.append(self.device_id)
         
-        # 과거 예측 조회 
+        # 과거 예측 조회 - 현재 로컬 시간 기준
+        current_time_kst = get_current_time()
+        
         query = f"""
         SELECT id, resource_type, target_time, predicted_value, device_id
         FROM predictions
         WHERE company_domain = %s AND {self.db_manager.server_id_field} = %s
         AND actual_value IS NULL
-        AND target_time <= NOW()
+        AND target_time <= %s
         AND SECOND(target_time) = 0
-        AND prediction_time >= DATE_SUB(NOW(), INTERVAL 24 HOUR){device_filter}
+        AND prediction_time >= DATE_SUB(%s, INTERVAL 24 HOUR){device_filter}
         """
+        
+        params.extend([current_time_kst, current_time_kst])
         
         predictions = self.db_manager.fetch_all(query, tuple(params))
         
@@ -330,7 +333,13 @@ class SystemResourcePredictor:
             
             # 시간 파싱 (간격에 따른 포맷 결정)
             time_format = '%Y-%m-%d %H:%M:00' if interval_minutes < 60 else '%Y-%m-%d %H:00:00'
-            times = [datetime.strptime(t, time_format) for t in predictions['times']]
+            
+            # 시간 파싱 시 이미 KST 시간임을 명시
+            times = []
+            for t in predictions['times']:
+                parsed_time = datetime.strptime(t, time_format)
+                # 파싱된 시간은 이미 KST이므로 추가 변환 불필요
+                times.append(parsed_time)
             
             prediction_time = get_current_time() 
             batch_id = get_current_time().strftime("%Y%m%d%H%M%S")
@@ -348,11 +357,11 @@ class SystemResourcePredictor:
                         self.company_domain,
                         self.server_id,
                         prediction_time,
-                        target_time,
+                        target_time,  # 이미 KST 시간
                         resource_type,
-                        float(value),  # 명시적 형변환
-                        None,  # actual_value (나중에 업데이트)
-                        None,  # error (나중에 계산)
+                        float(value),
+                        None,  # actual_value
+                        None,  # error
                         self.model_type,
                         batch_id,
                         device_id
