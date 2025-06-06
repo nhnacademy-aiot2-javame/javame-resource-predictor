@@ -119,14 +119,19 @@ class SystemResourcePredictor:
         if isinstance(time_val, str):
             time_val = datetime.fromisoformat(time_val.replace('Z', '+00:00'))
         
+        # timezone 정보가 있으면 제거 (문제의 원인일 수 있음)
         if time_val.tzinfo is not None:
             time_val = time_val.replace(tzinfo=None)
+        
+        logger.info(f"align_prediction_time 입력: {time_val}")
         
         time_val = time_val.replace(second=0, microsecond=0)
         
         if interval_minutes and interval_minutes > 1:
             aligned_minute = (time_val.minute // interval_minutes) * interval_minutes
             time_val = time_val.replace(minute=aligned_minute)
+        
+        logger.info(f"align_prediction_time 출력: {time_val}")
         
         return time_val
 
@@ -177,21 +182,21 @@ class SystemResourcePredictor:
         
         # 현재 시간을 설정된 간격으로 정렬
         now = get_current_time()  # 이미 한국 시간
+        logger.info(f"get_current_time() 결과: {now}")
+        logger.info(f"datetime.now() 결과: {datetime.now()}")
+        
         aligned_now = self.align_prediction_time(now, prediction_interval_minutes)
+        logger.info(f"align_prediction_time 결과: {aligned_now}")
         
-        # 첫 예측은 다음 정각부터 시작
         next_prediction = aligned_now + timedelta(minutes=prediction_interval_minutes)
-        
-        logger.info(f"현재 시간 (KST): {now}")
-        logger.info(f"정렬된 현재 시간: {aligned_now}")
-        logger.info(f"첫 예측 시간: {next_prediction}")
+        logger.info(f"첫 예측 시간 (next_prediction): {next_prediction}")
         
         # 설정된 간격으로 예측
         total_predictions = hours * 60 // prediction_interval_minutes
         
         for i in range(total_predictions):
             pred_time = next_prediction + timedelta(minutes=i * prediction_interval_minutes)
-            prediction_times.append(pred_time)  # 한국 시간으로 유지
+            prediction_times.append(pred_time)
             
             # 3단계: 영향도 → 영향도 통계 계산
             impact_stats = self._calculate_impact_statistics(app_impacts, pred_time)
