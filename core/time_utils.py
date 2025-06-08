@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timedelta
 
 # 환경변수로 시간대 오프셋 설정 가능 (기본값: 9시간)
-TIMEZONE_OFFSET_HOURS = int(os.getenv('TIMEZONE_OFFSET_HOURS', '9'))
+TIMEZONE_OFFSET_HOURS = int(os.getenv('TIMEZONE_OFFSET_HOURS', '0'))
 
 def get_current_time():
     """현재 시간을 반환 (시간대 보정 적용)"""
