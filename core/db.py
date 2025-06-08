@@ -75,7 +75,7 @@ class DatabaseManager:
         """
         
         return self.execute_query(query, (company_domain, resource_type, config_value))
-    
+        
     def connect(self):
         """MySQL 데이터베이스에 연결"""
         try:
@@ -84,11 +84,15 @@ class DatabaseManager:
                 port=MYSQL["port"],
                 user=MYSQL["user"],
                 password=MYSQL["password"],
-                database=MYSQL["database"],
-                time_zone='+09:00'
+                database=MYSQL["database"]
             )
             if self.connection.is_connected():
-                logger.debug("MySQL 데이터베이스에 성공적으로 연결됨")
+                # 세션 시간대를 한국 시간으로 설정
+                cursor = self.connection.cursor()
+                cursor.execute("SET time_zone = '+09:00'")
+                cursor.close()
+                
+                logger.debug("MySQL 데이터베이스에 성공적으로 연결됨 (시간대: +09:00)")
                 return True
         except Error as e:
             logger.error(f"MySQL 연결 오류: {e}")
