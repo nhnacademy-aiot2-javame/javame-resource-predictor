@@ -182,24 +182,17 @@ class SystemResourcePredictor:
         
         # 현재 시간을 설정된 간격으로 정렬
         now = get_current_time()  # 이미 한국 시간
-        logger.info(f"DEBUG: get_current_time() = {now}")
-        logger.info(f"DEBUG: datetime.now() = {datetime.now()}")
-        
-        aligned_now = align_time(now, prediction_interval_minutes)
-        logger.info(f"align_prediction_time 결과: {aligned_now}")
-        
+        aligned_now = self.align_prediction_time(now, prediction_interval_minutes)
         next_prediction = aligned_now + timedelta(minutes=prediction_interval_minutes)
-        logger.info(f"첫 예측 시간 (next_prediction): {next_prediction}")
         
-
-        logger.info(f"DEBUG: aligned_now = {aligned_now}")
-        logger.info(f"DEBUG: next_prediction = {next_prediction}")
         # 설정된 간격으로 예측
         total_predictions = hours * 60 // prediction_interval_minutes
         
+        logger.info(f"예측 시작 시간 (KST): {next_prediction}, 총 {total_predictions}개 예측")
+        
         for i in range(total_predictions):
             pred_time = next_prediction + timedelta(minutes=i * prediction_interval_minutes)
-            prediction_times.append(pred_time)
+            prediction_times.append(pred_time)  # 한국 시간으로 유지
             
             # 3단계: 영향도 → 영향도 통계 계산
             impact_stats = self._calculate_impact_statistics(app_impacts, pred_time)
@@ -234,22 +227,17 @@ class SystemResourcePredictor:
         # 임계값 도달 시간 계산
         alerts = self.check_threshold_crossings(prediction_times, predictions)
         
-        # 결과 구조화 (시간을 문자열로 변환)
-        time_format = '%Y-%m-%d %H:%M:00' if prediction_interval_minutes < 60 else '%Y-%m-%d %H:00:00'
-        
+        # 결과 구조화 - datetime 객체를 직접 전달
         result = {
-            'times': [t.strftime(time_format) for t in prediction_times],
+            'times': prediction_times,  # datetime 객체 리스트로 유지
             'predictions': predictions,
             'alerts': alerts,
             'device_id': self.device_id,
             'prediction_interval_minutes': prediction_interval_minutes
         }
         
-        # 디버깅 로그 추가
-        if prediction_times:
-            logger.info(f"예측 시간 범위: {prediction_times[0]} ~ {prediction_times[-1]}")
-        
         logger.info(f"예측 완료: {len(prediction_times)}개 포인트, {prediction_interval_minutes}분 간격")
+        logger.info(f"예측 시간 범위 (KST): {prediction_times[0]} ~ {prediction_times[-1]}")
         
         return result
 
@@ -349,21 +337,23 @@ class SystemResourcePredictor:
             # 예측 간격 확인
             interval_minutes = predictions.get('prediction_interval_minutes', 5)
             
-            # 시간 파싱 (간격에 따른 포맷 결정)
-            time_format = '%Y-%m-%d %H:%M:00' if interval_minutes < 60 else '%Y-%m-%d %H:00:00'
+            # times가 datetime 객체 리스트인지 문자열 리스트인지 확인
+            times = predictions['times']
+            if times and isinstance(times[0], str):
+                # 문자열인 경우 파싱 (기존 호환성)
+                time_format = '%Y-%m-%d %H:%M:00' if interval_minutes < 60 else '%Y-%m-%d %H:00:00'
+                times = [datetime.strptime(t, time_format) for t in times]
+                logger.info("문자열 시간을 datetime으로 변환")
+            else:
+                # 이미 datetime 객체인 경우
+                logger.info("datetime 객체 그대로 사용")
             
-            # 문자열을 datetime으로 변환 (이미 KST)
-            times = [datetime.strptime(t, time_format) for t in predictions['times']]
-            
-            prediction_time = get_current_time()  # KST
+            prediction_time = get_current_time() 
             batch_id = get_current_time().strftime("%Y%m%d%H%M%S")
             device_id = predictions.get('device_id', '')
             
-            logger.info(f"예측 결과 저장 시작")
-            logger.info(f"prediction_time (KST): {prediction_time}")
-            logger.info(f"target_time 범위: {times[0]} ~ {times[-1]}")
-            logger.info(f"예측 개수: {len(times)}개, 간격: {interval_minutes}분")
             logger.info(f"예측 결과 저장: {len(times)}개 포인트, {interval_minutes}분 간격")
+            logger.info(f"저장할 target_time 범위 (KST): {times[0]} ~ {times[-1]}")
             
             # 자원별 예측 결과
             for resource_type, values in predictions['predictions'].items():
@@ -375,11 +365,11 @@ class SystemResourcePredictor:
                         self.company_domain,
                         self.server_id,
                         prediction_time,
-                        target_time,  # 이미 KST 시간
+                        target_time,
                         resource_type,
-                        float(value),
-                        None,  # actual_value
-                        None,  # error
+                        float(value),  # 명시적 형변환
+                        None,  # actual_value (나중에 업데이트)
+                        None,  # error (나중에 계산)
                         self.model_type,
                         batch_id,
                         device_id
@@ -410,7 +400,12 @@ class SystemResourcePredictor:
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
                     
-                    crossing_time = datetime.strptime(alert['crossing_time'], time_format)
+                    # crossing_time 처리
+                    crossing_time = alert['crossing_time']
+                    if isinstance(crossing_time, str):
+                        time_format = '%Y-%m-%d %H:%M:00' if interval_minutes < 60 else '%Y-%m-%d %H:00:00'
+                        crossing_time = datetime.strptime(crossing_time, time_format)
+                    
                     device_id = alert.get('device_id', '')
                     
                     params = (
@@ -1027,7 +1022,7 @@ class SystemResourcePredictor:
                 
                 alerts[resource_type] = {
                     'threshold': threshold,
-                    'crossing_time': crossing_time.strftime('%Y-%m-%d %H:%M:00'),
+                    'crossing_time': crossing_time,  # datetime 객체로 유지
                     'time_to_threshold': time_to_threshold,
                     'current_value': values[0],
                     'predicted_value': values[first_crossing],

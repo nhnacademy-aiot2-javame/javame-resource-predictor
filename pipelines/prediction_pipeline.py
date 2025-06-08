@@ -154,8 +154,6 @@ class PredictionPipeline(BasePipeline):
             return False
     def _save_predictions(self, predictions) -> bool:
         """예측 결과 저장"""
-        logger.info("========== _save_predictions 시작 ==========")
-        
         try:
             db = self.get_db_manager()
             
@@ -164,26 +162,15 @@ class PredictionPipeline(BasePipeline):
             prediction_time = get_current_time()  
             batch_id = prediction_time.strftime("%Y%m%d%H%M%S")
             
-            logger.info(f"prediction_time (현재 KST): {prediction_time}")
-            
-            # 시간 파싱
+            # times가 datetime 객체 리스트인지 문자열 리스트인지 확인
             times = predictions.get('times', [])
-            logger.info(f"받은 times 타입: {type(times[0]) if times else 'empty'}")
-            logger.info(f"첫 번째 time 값: {times[0] if times else 'empty'}")
-            
-            if isinstance(times[0], str):
-                # 시간 포맷 결정
-                interval_minutes = predictions.get('prediction_interval_minutes', 5)
-                time_format = '%Y-%m-%d %H:%M:00' if interval_minutes < 60 else '%Y-%m-%d %H:00:00'
-                
-                # 문자열을 datetime으로 변환 (이미 KST)
-                parsed_times = []
-                for t in times:
-                    parsed_time = datetime.strptime(t, time_format)
-                    parsed_times.append(parsed_time)
-                times = parsed_times
-                
-                logger.info(f"파싱 후 target_time 범위: {times[0]} ~ {times[-1]}")
+            if times and isinstance(times[0], str):
+                # 문자열인 경우 파싱
+                times = [datetime.strptime(t, '%Y-%m-%d %H:%M:00') for t in times]
+                logger.info("예측 시간을 문자열에서 datetime으로 변환")
+            else:
+                # 이미 datetime 객체인 경우
+                logger.info("예측 시간이 이미 datetime 객체")
             
             # 각 리소스별 예측 저장
             for resource_type, values in predictions.get('predictions', {}).items():
@@ -192,7 +179,7 @@ class PredictionPipeline(BasePipeline):
                         self.config.get('company_domain'),
                         self.config.get_server_id(),
                         prediction_time,
-                        target_time,  # 이미 KST 시간
+                        target_time,
                         resource_type,
                         float(value),
                         None,  # actual_value
@@ -223,7 +210,7 @@ class PredictionPipeline(BasePipeline):
             
         except Exception as e:
             logger.error(f"예측 결과 저장 오류: {e}")
-            return False    
+            return False
     def _update_accuracy(self, **kwargs) -> bool:
         """예측 정확도 업데이트"""
         logger.info("예측 정확도 업데이트 시작")
@@ -445,7 +432,7 @@ class PredictionPipeline(BasePipeline):
         except Exception as e:
             logger.error(f"알림 처리 오류: {e}")
             return False
-    
+        
     def _process_prediction_alerts(self, predictions: Dict[str, Any]) -> bool:
         """예측 결과에서 알림 추출 및 처리"""
         try:
@@ -456,11 +443,18 @@ class PredictionPipeline(BasePipeline):
             alert_count = 0
             
             for resource_type, alert_info in predictions['alerts'].items():
+                # crossing_time 처리 - datetime 객체 또는 문자열일 수 있음
+                crossing_time = alert_info['crossing_time']
+                if isinstance(crossing_time, datetime):
+                    crossing_time_str = crossing_time.strftime('%Y-%m-%d %H:%M:00')
+                else:
+                    crossing_time_str = crossing_time
+                
                 # 알림 메시지 생성
                 message = self._create_alert_message(
                     resource_type,
                     alert_info['threshold'],
-                    alert_info['crossing_time'],
+                    crossing_time_str,
                     alert_info['time_to_threshold'],
                     alert_info['current_value'],
                     alert_info['predicted_value']

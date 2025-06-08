@@ -308,7 +308,21 @@ class StreamingDataPipeline(BasePipeline):
         except Exception as e:
             logger.error(f"파이프라인 상태 확인 오류: {e}")
             return False
-    
+        
+    def _get_recent_job_logs(self, hours: int = 24) -> List[Dict]:
+        """최근 작업 로그 조회"""
+        recent_logs = []
+        
+        # 메모리 기반 간단한 작업 로그
+        # 실제 환경에서는 DB나 파일에서 조회
+        return [
+            {
+                'job_type': 'streaming_processing',
+                'start_time': get_current_time() - timedelta(hours=1),
+                'end_time': get_current_time() - timedelta(minutes=55),
+                'job_status': 'completed'
+            }
+        ]   
     
     def get_pipeline_metrics(self) -> Dict[str, Any]:
         """파이프라인 성능 메트릭 조회"""
