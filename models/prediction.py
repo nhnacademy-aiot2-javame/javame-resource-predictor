@@ -357,7 +357,7 @@ class SystemResourcePredictor:
             
             prediction_time = get_current_time()
             # DB 저장용으로 9시간 더하기
-            prediction_time_db = prediction_time + timedelta(hours=9)
+            prediction_time_db = prediction_time + timedelta(hours=18)
             
             batch_id = get_current_time().strftime("%Y%m%d%H%M%S")
             device_id = predictions.get('device_id', '')
@@ -372,7 +372,7 @@ class SystemResourcePredictor:
                 
                 for i, (target_time, value) in enumerate(zip(times, values)):
                     # DB 저장용으로 9시간 더하기
-                    target_time_db = target_time + timedelta(hours=9)
+                    target_time_db = target_time + timedelta(hours=18)
                     
                     batch_data.append((
                         self.company_domain,
