@@ -84,7 +84,8 @@ class DatabaseManager:
                 port=MYSQL["port"],
                 user=MYSQL["user"],
                 password=MYSQL["password"],
-                database=MYSQL["database"]
+                database=MYSQL["database"],
+                time_zone='+09:00'
             )
             if self.connection.is_connected():
                 logger.debug("MySQL 데이터베이스에 성공적으로 연결됨")

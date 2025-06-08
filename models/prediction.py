@@ -180,37 +180,29 @@ class SystemResourcePredictor:
         predictions = {}
         prediction_times = []
         
-        # 현재 시간 (한국 시간)
-        now = get_current_time()
+        # 현재 시간을 설정된 간격으로 정렬 (한국 시간)
+        now = get_current_time()  # 한국 시간
+        aligned_now = self.align_prediction_time(now, prediction_interval_minutes)
         
-        # 서버 시간으로 변환 (DB 저장용)
-        from core.time_utils import convert_to_utc
-        server_now = convert_to_utc(now)
-        
-        # 서버 시간 기준으로 정렬
-        aligned_server_time = self.align_prediction_time(server_now, prediction_interval_minutes)
-        
-        # 다음 예측 시간이 현재보다 과거면 다음 간격으로
-        if aligned_server_time <= server_now:
-            aligned_server_time = aligned_server_time + timedelta(minutes=prediction_interval_minutes)
+        # 다음 간격부터 시작
+        if aligned_now <= now:
+            first_prediction = aligned_now + timedelta(minutes=prediction_interval_minutes)
+        else:
+            first_prediction = aligned_now
         
         # 설정된 간격으로 예측
         total_predictions = hours * 60 // prediction_interval_minutes
         
         logger.info(f"현재 시간 (KST): {now}")
-        logger.info(f"현재 시간 (서버): {server_now}")
-        logger.info(f"예측 시작 시간 (서버): {aligned_server_time}")
+        logger.info(f"예측 시작 시간 (KST): {first_prediction}")
+        logger.info(f"총 예측 개수: {total_predictions}")
         
         for i in range(total_predictions):
-            pred_time = aligned_server_time + timedelta(minutes=i * prediction_interval_minutes)
-            prediction_times.append(pred_time)  # 서버 시간으로 저장
-            
-            # 영향도 계산용 한국 시간
-            from core.time_utils import convert_to_local
-            pred_time_kst = convert_to_local(pred_time)
+            pred_time = first_prediction + timedelta(minutes=i * prediction_interval_minutes)
+            prediction_times.append(pred_time)  # 한국 시간으로 유지
             
             # 3단계: 영향도 → 영향도 통계 계산
-            impact_stats = self._calculate_impact_statistics(app_impacts, pred_time_kst)
+            impact_stats = self._calculate_impact_statistics(app_impacts, pred_time)
             
             # 4단계: 시스템 모델로 최종 예측 (영향도 통계 → 시스템 리소스)
             input_features = pd.DataFrame([impact_stats])
@@ -244,20 +236,15 @@ class SystemResourcePredictor:
         
         # 결과 구조화 - datetime 객체를 직접 전달
         result = {
-            'times': prediction_times,  # datetime 객체 리스트로 유지 (서버 시간)
+            'times': prediction_times,  # datetime 객체 리스트로 유지
             'predictions': predictions,
             'alerts': alerts,
             'device_id': self.device_id,
             'prediction_interval_minutes': prediction_interval_minutes
         }
         
-        # 로그용 한국 시간 변환
-        first_kst = convert_to_local(prediction_times[0])
-        last_kst = convert_to_local(prediction_times[-1])
-        
         logger.info(f"예측 완료: {len(prediction_times)}개 포인트, {prediction_interval_minutes}분 간격")
-        logger.info(f"예측 시간 범위 (서버): {prediction_times[0]} ~ {prediction_times[-1]}")
-        logger.info(f"예측 시간 범위 (KST): {first_kst} ~ {last_kst}")
+        logger.info(f"예측 시간 범위 (KST): {prediction_times[0]} ~ {prediction_times[-1]}")
         
         return result
 
