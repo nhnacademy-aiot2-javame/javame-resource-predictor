@@ -183,15 +183,18 @@ class SystemResourcePredictor:
         # 현재 시간을 설정된 간격으로 정렬
         now = get_current_time()  # 이미 한국 시간
         aligned_now = self.align_prediction_time(now, prediction_interval_minutes)
-        next_prediction = aligned_now + timedelta(minutes=prediction_interval_minutes)
+        
+        # 첫 번째 예측은 현재 시간부터 시작 (다음 간격이 아닌)
+        first_prediction = aligned_now
         
         # 설정된 간격으로 예측
         total_predictions = hours * 60 // prediction_interval_minutes
         
-        logger.info(f"예측 시작 시간 (KST): {next_prediction}, 총 {total_predictions}개 예측")
+        logger.info(f"현재 시간 (KST): {now}")
+        logger.info(f"예측 시작 시간 (KST): {first_prediction}, 총 {total_predictions}개 예측")
         
         for i in range(total_predictions):
-            pred_time = next_prediction + timedelta(minutes=i * prediction_interval_minutes)
+            pred_time = first_prediction + timedelta(minutes=i * prediction_interval_minutes)
             prediction_times.append(pred_time)  # 한국 시간으로 유지
             
             # 3단계: 영향도 → 영향도 통계 계산
