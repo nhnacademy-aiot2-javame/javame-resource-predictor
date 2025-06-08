@@ -5,7 +5,7 @@
 import os
 import sys
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List  
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
