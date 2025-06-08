@@ -357,7 +357,9 @@ class SystemResourcePredictor:
             
             prediction_time = get_current_time()
             # DB 저장용으로 9시간 더하기
-            prediction_time_db = prediction_time + timedelta(hours=18)
+            logger.info(f"[디버그] 원본 prediction_time: {prediction_time}")
+            prediction_time_db = prediction_time + timedelta(hours=9)
+            logger.info(f"[디버그] 18시간 더한 prediction_time_db: {prediction_time_db}")
             
             batch_id = get_current_time().strftime("%Y%m%d%H%M%S")
             device_id = predictions.get('device_id', '')
@@ -372,7 +374,7 @@ class SystemResourcePredictor:
                 
                 for i, (target_time, value) in enumerate(zip(times, values)):
                     # DB 저장용으로 9시간 더하기
-                    target_time_db = target_time + timedelta(hours=18)
+                    target_time_db = target_time + timedelta(hours=9)
                     
                     batch_data.append((
                         self.company_domain,
