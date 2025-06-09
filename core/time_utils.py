@@ -48,3 +48,26 @@ def convert_to_utc(local_time):
     else:
         # 서버가 UTC면 변환 없음
         return local_time
+    
+def align_time(time_val, interval_minutes=1):
+    """시간을 지정된 간격으로 정렬"""
+    if time_val is None:
+        return None
+    
+    # 문자열인 경우 datetime으로 변환
+    if isinstance(time_val, str):
+        time_val = datetime.fromisoformat(time_val.replace('Z', '+00:00'))
+    
+    # timezone 정보가 있으면 제거
+    if hasattr(time_val, 'replace') and time_val.tzinfo is not None:
+        time_val = time_val.replace(tzinfo=None)
+    
+    # 초와 마이크로초를 0으로 설정
+    time_val = time_val.replace(second=0, microsecond=0)
+    
+    # 지정된 간격으로 분 정렬
+    if interval_minutes and interval_minutes > 1:
+        aligned_minute = (time_val.minute // interval_minutes) * interval_minutes
+        time_val = time_val.replace(minute=aligned_minute)
+    
+    return time_val
