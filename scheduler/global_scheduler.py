@@ -383,7 +383,26 @@ class StreamingGlobalScheduler:
             
         except Exception as e:
             logger.error(f"회사 감지 및 등록 오류: {e}")
-    
+    def run_data_cleanup(self):
+        """오래된 데이터 정리"""
+        if self.is_stopping:
+            return
+        
+        logger.info("오래된 데이터 정리 시작")
+        
+        try:
+            from scripts.cleanup_old_data import cleanup_predictions, cleanup_model_performance
+            
+            # 예측 데이터 정리 (7일)
+            cleanup_predictions(self.db_manager, retention_days=7)
+            
+            # 모델 성능 데이터 정리 (3일)
+            cleanup_model_performance(self.db_manager, retention_days=3)
+            
+            logger.info("오래된 데이터 정리 완료")
+            
+        except Exception as e:
+            logger.error(f"데이터 정리 오류: {e}")   
     def run_streaming_processing(self):
         """모든 회사 스트리밍 처리"""
         if self.is_stopping:
@@ -536,7 +555,15 @@ class StreamingGlobalScheduler:
         schedule.every(self.schedule_config['health_check_interval']).minutes.do(
             self._safe_job_wrapper, self.run_health_check, "헬스 체크"
         )
+        # 데이터 정리 (매일 새벽 2시)
+        schedule.every().day.at("02:00").do(
+            self._safe_job_wrapper, self.run_data_cleanup, "데이터 정리"
+        )
         
+        # 또는 6시간마다
+        schedule.every(360).minutes.do(
+            self._safe_job_wrapper, self.run_data_cleanup, "데이터 정리"
+        )        
         logger.info("스트리밍 글로벌 스케줄 설정 완료:")
         for job_name, interval in self.schedule_config.items():
             logger.info(f"  {job_name}: {interval}분마다")
