@@ -128,21 +128,23 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 echo "설정 검사 완료"
-# 환경에 따른 실행 모드 결정
-if [ "$1" = "--dry-run" ]; then
-    echo "드라이런 모드로 실행"
-    exec python main_streaming.py --mode scheduler --dry-run
-elif [ "$1" = "--cache-cleanup" ]; then
-    echo "캐시 정리 모드로 실행"
-    exec python main_streaming.py --cache-cleanup
-    exit 0
-else
-    echo "스트리밍 스케줄러 시작..."
+
+# 환경변수로 캐시 삭제 옵션 처리
+if [ "${CLEAR_CACHE}" = "true" ]; then
     echo ""
-    
-    # 시작 시간 기록
+    echo "환경변수 설정에 따라 캐시 삭제"
+    rm -rf cache/*
+    echo "캐시 삭제 완료"
+fi
+
+# 강제 새로고침 옵션 처리
+if [ "${FORCE_REFRESH}" = "true" ]; then
+    echo ""
+    echo "강제 새로고침 모드로 시작"
+    exec python main_streaming.py --mode scheduler --force-refresh
+else
+    echo ""
+    echo "스트리밍 스케줄러 시작..."
     echo "$(date): 스트리밍 시스템 시작" >> logs/startup.log
-    
-    # 메인 애플리케이션 실행
     exec python main_streaming.py --mode scheduler
 fi
