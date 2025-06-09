@@ -337,7 +337,7 @@ class SystemResourcePredictor:
             self.update_model_performance()
         
         return True
-        
+            
     def save_predictions(self, predictions):
         """예측 결과 저장 - 간격 설정 지원"""
         try:
@@ -356,10 +356,8 @@ class SystemResourcePredictor:
                 logger.info("datetime 객체 그대로 사용")
             
             prediction_time = get_current_time()
-            # DB 저장용으로 9시간 더하기
-            logger.info(f"[디버그] 원본 prediction_time: {prediction_time}")
-            prediction_time_db = prediction_time + timedelta(hours=9)
-            logger.info(f"[디버그] 18시간 더한 prediction_time_db: {prediction_time_db}")
+            # 9시간 더하는 부분 제거
+            # prediction_time_db = prediction_time + timedelta(hours=9)
             
             batch_id = get_current_time().strftime("%Y%m%d%H%M%S")
             device_id = predictions.get('device_id', '')
@@ -373,14 +371,14 @@ class SystemResourcePredictor:
                 batch_data = []
                 
                 for i, (target_time, value) in enumerate(zip(times, values)):
-                    # DB 저장용으로 9시간 더하기
-                    target_time_db = target_time + timedelta(hours=9)
+                    # 9시간 더하는 부분 제거
+                    # target_time_db = target_time + timedelta(hours=9)
                     
                     batch_data.append((
                         self.company_domain,
                         self.server_id,
-                        prediction_time_db,  # 9시간 더한 시간
-                        target_time_db,      # 9시간 더한 시간
+                        prediction_time,  # 그대로 사용
+                        target_time,      # 그대로 사용
                         resource_type,
                         float(value),
                         None,
@@ -421,9 +419,9 @@ class SystemResourcePredictor:
                         time_format = '%Y-%m-%d %H:%M:00' if interval_minutes < 60 else '%Y-%m-%d %H:00:00'
                         crossing_time = datetime.strptime(crossing_time, time_format)
                     
-                    # DB 저장용으로 9시간 더하기
-                    crossing_time_db = crossing_time + timedelta(hours=9)
-                    created_at_db = get_current_time() + timedelta(hours=9)
+                    # 9시간 더하는 부분 제거
+                    # crossing_time_db = crossing_time + timedelta(hours=9)
+                    # created_at_db = get_current_time() + timedelta(hours=9)
                     
                     device_id = alert.get('device_id', '')
                     
@@ -432,11 +430,11 @@ class SystemResourcePredictor:
                         self.server_id,
                         resource_type,
                         float(alert['threshold']),
-                        crossing_time_db,    # 9시간 더한 시간
+                        crossing_time,    # 그대로 사용
                         float(alert['time_to_threshold']),
                         float(alert['current_value']),
                         float(alert['predicted_value']),
-                        created_at_db,       # 9시간 더한 시간
+                        get_current_time(),  # 그대로 사용
                         batch_id,
                         device_id
                     )
