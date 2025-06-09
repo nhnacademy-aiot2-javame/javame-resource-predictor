@@ -19,8 +19,8 @@ COPY . .
 # 디렉토리 생성
 RUN mkdir -p cache logs models/trained
 
-# 실행 권한 부여
-RUN chmod +x streaming_startup.sh
+# 실행 권한 부여 (올바른 경로)
+RUN chmod +x scripts/streaming_startup.sh
 
 # 기본 실행 명령
-ENTRYPOINT ["/bin/bash", "streaming_startup.sh"]
+ENTRYPOINT ["/bin/bash", "scripts/streaming_startup.sh"]
